@@ -2995,6 +2995,18 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             <Button
               variant="ghost"
               size="icon"
+              className="h-7 w-7"
+              onClick={() => {
+                handleStickyDoubleTap(selectedStickyId);
+                setSelectedStickyId(null);
+              }}
+              title="Edit sticky note"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
               className="h-7 w-7 text-destructive"
               onClick={() => {
                 handleDeleteStickyNote(selectedStickyId);
