@@ -123,6 +123,7 @@ interface RichTextEditorProps {
   voiceRecordings?: VoiceRecording[];
   onVoiceRecordingDelete?: (id: string) => void;
   onInsertVoiceRecording?: (recording: VoiceRecording) => void;
+  onFloatingImageUpload?: () => void;
 }
 
 const COLORS = [
@@ -408,6 +409,7 @@ export const RichTextEditor = ({
   isFindReplaceOpen,
   voiceRecordings = [],
   onVoiceRecordingDelete,
+  onFloatingImageUpload,
 }: RichTextEditorProps) => {
   const { t } = useTranslation();
   const internalEditorRef = useRef<HTMLDivElement>(null);
@@ -2593,7 +2595,7 @@ export const RichTextEditor = ({
       onHighlight={handleHighlight}
       onBulletList={handleBulletList}
       onNumberedList={handleNumberedList}
-      onImageUpload={() => fileInputRef.current?.click()}
+      onImageUpload={onFloatingImageUpload || (() => fileInputRef.current?.click())}
       onTableInsert={(rows: number, cols: number, style?: string) => {
         const tableHTML = generateTableHTML(rows, cols, (style as TableStyle) || 'default');
         document.execCommand('insertHTML', false, tableHTML);

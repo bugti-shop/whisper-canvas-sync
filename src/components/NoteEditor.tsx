@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from './RichTextEditor';
-import { FloatingImageLayer } from './FloatingImageLayer';
+import { FloatingImageLayer, FloatingImageLayerHandle } from './FloatingImageLayer';
 import { LinkedInTextFormatter } from './LinkedInTextFormatter';
 import { getTableStyles, TableStyle } from './TableEditor';
 import { InlineFindReplace } from './InlineFindReplace';
@@ -109,6 +109,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
   const [color, setColor] = useState<StickyColor>('yellow');
   const [images, setImages] = useState<string[]>([]);
   const [floatingImages, setFloatingImages] = useState<FloatingImage[]>([]);
+  const floatingImageRef = useRef<FloatingImageLayerHandle>(null);
   const [voiceRecordings, setVoiceRecordings] = useState<VoiceRecording[]>([]);
   const [tableRows, setTableRows] = useState(3);
   const [tableCols, setTableCols] = useState(3);
@@ -1745,10 +1746,12 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
                 onVoiceRecord={() => setShowVoiceRecorder(true)}
                 externalEditorRef={editorRef}
                 isFindReplaceOpen={isFindReplaceOpen}
+                onFloatingImageUpload={(noteType === 'regular' || noteType === 'sticky' || noteType === 'lined' || noteType === 'textformat') ? () => floatingImageRef.current?.triggerAdd() : undefined}
               />
               {/* Floating images layer for regular/sticky/lined notes */}
               {(noteType === 'regular' || noteType === 'sticky' || noteType === 'lined' || noteType === 'textformat') && (
                 <FloatingImageLayer
+                  ref={floatingImageRef}
                   images={floatingImages}
                   onChange={setFloatingImages}
                 />
