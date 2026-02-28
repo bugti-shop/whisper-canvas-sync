@@ -5,10 +5,10 @@ import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import {
   Pen, Eraser, Undo2, Redo2, Trash2, Palette, Minus,
-  Minus as LineIcon, Square, Circle, MoveRight,
+  Minus as LineIcon, Square, Circle, MoveRight, Ruler,
   Pencil, PenTool, Highlighter, SprayCan, Brush,
   Layers, Eye, EyeOff, Maximize, Pipette, Grid3X3,
-  MousePointer2, Copy, Clipboard, Trash, RotateCw,
+  MousePointer2, Copy, Clipboard, Trash, RotateCw, Focus,
   Download, Share2, FileText, FileImage, FileCode,
   Type, Bold, Italic, Triangle, Star, Diamond, Hexagon, Navigation,
   Droplets, CircleDot, PaintbrushVertical, PenLine, StickyNote, ImagePlus, Sparkles,
@@ -1833,6 +1833,10 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   const [gridColor, setGridColor] = useState('#8c8c8c');
   const [gridOpacity, setGridOpacity] = useState(0.45);
 
+  // Focus mode & ruler state
+  const [focusMode, setFocusMode] = useState(false);
+  const [showRulers, setShowRulers] = useState(false);
+
   // Fill color state for shapes
   const [fillEnabled, setFillEnabled] = useState(false);
   const [fillColor, setFillColor] = useState('#3b82f6');
@@ -3422,6 +3426,116 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           )}
           style={{ touchAction: 'none' }}
         />
+        {/* Ruler overlays - re-render on zoom/pan changes */}
+        {showRulers && zoomDisplay >= 0 && (
+          <>
+            {/* Top horizontal ruler */}
+            <canvas
+              ref={(el) => {
+                if (!el) return;
+                const ctx = el.getContext('2d');
+                if (!ctx) return;
+                const dpr = window.devicePixelRatio || 1;
+                const rect = el.parentElement?.getBoundingClientRect();
+                if (!rect) return;
+                const w = rect.width;
+                el.width = w * dpr;
+                el.height = 24 * dpr;
+                el.style.width = w + 'px';
+                el.style.height = '24px';
+                ctx.scale(dpr, dpr);
+                ctx.fillStyle = 'hsl(var(--card))';
+                ctx.fillRect(0, 0, w, 24);
+                ctx.strokeStyle = 'hsl(var(--border))';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(0, 23.5); ctx.lineTo(w, 23.5); ctx.stroke();
+                const zoom = zoomRef.current;
+                const panX = panRef.current.x;
+                const step = zoom >= 2 ? 10 : zoom >= 0.5 ? 25 : 50;
+                const majorStep = step * 4;
+                ctx.font = '9px system-ui';
+                ctx.fillStyle = 'hsl(var(--muted-foreground))';
+                ctx.textAlign = 'center';
+                const startWorld = Math.floor(-panX / zoom / step) * step - step;
+                const endWorld = Math.ceil((-panX + w) / zoom / step) * step + step;
+                for (let worldX = startWorld; worldX <= endWorld; worldX += step) {
+                  const screenX = worldX * zoom + panX;
+                  if (screenX < 24 || screenX > w) continue;
+                  const isMajor = worldX % majorStep === 0;
+                  ctx.strokeStyle = 'hsl(var(--muted-foreground) / 0.4)';
+                  ctx.lineWidth = isMajor ? 1 : 0.5;
+                  ctx.beginPath();
+                  ctx.moveTo(screenX, isMajor ? 6 : 14);
+                  ctx.lineTo(screenX, 23);
+                  ctx.stroke();
+                  if (isMajor) ctx.fillText(String(worldX), screenX, 11);
+                }
+                // Corner square
+                ctx.fillStyle = 'hsl(var(--card))';
+                ctx.fillRect(0, 0, 24, 24);
+                ctx.strokeStyle = 'hsl(var(--border))';
+                ctx.strokeRect(0, 0, 24, 24);
+                ctx.font = '7px system-ui';
+                ctx.fillStyle = 'hsl(var(--muted-foreground))';
+                ctx.textAlign = 'center';
+                ctx.fillText('px', 12, 15);
+              }}
+              key={`ruler-h-${zoomDisplay}`}
+              className="absolute top-0 left-0 z-20 pointer-events-none"
+            />
+            {/* Left vertical ruler */}
+            <canvas
+              ref={(el) => {
+                if (!el) return;
+                const ctx = el.getContext('2d');
+                if (!ctx) return;
+                const dpr = window.devicePixelRatio || 1;
+                const rect = el.parentElement?.getBoundingClientRect();
+                if (!rect) return;
+                const h = rect.height;
+                el.width = 24 * dpr;
+                el.height = h * dpr;
+                el.style.width = '24px';
+                el.style.height = h + 'px';
+                ctx.scale(dpr, dpr);
+                ctx.fillStyle = 'hsl(var(--card))';
+                ctx.fillRect(0, 0, 24, h);
+                ctx.strokeStyle = 'hsl(var(--border))';
+                ctx.lineWidth = 1;
+                ctx.beginPath(); ctx.moveTo(23.5, 0); ctx.lineTo(23.5, h); ctx.stroke();
+                const zoom = zoomRef.current;
+                const panY = panRef.current.y;
+                const step = zoom >= 2 ? 10 : zoom >= 0.5 ? 25 : 50;
+                const majorStep = step * 4;
+                ctx.font = '9px system-ui';
+                ctx.fillStyle = 'hsl(var(--muted-foreground))';
+                ctx.textAlign = 'center';
+                const startWorld = Math.floor(-panY / zoom / step) * step - step;
+                const endWorld = Math.ceil((-panY + h) / zoom / step) * step + step;
+                for (let worldY = startWorld; worldY <= endWorld; worldY += step) {
+                  const screenY = worldY * zoom + panY;
+                  if (screenY < 24 || screenY > h) continue;
+                  const isMajor = worldY % majorStep === 0;
+                  ctx.strokeStyle = 'hsl(var(--muted-foreground) / 0.4)';
+                  ctx.lineWidth = isMajor ? 1 : 0.5;
+                  ctx.beginPath();
+                  ctx.moveTo(isMajor ? 6 : 14, screenY);
+                  ctx.lineTo(23, screenY);
+                  ctx.stroke();
+                  if (isMajor) {
+                    ctx.save();
+                    ctx.translate(11, screenY);
+                    ctx.rotate(-Math.PI / 2);
+                    ctx.fillText(String(worldY), 0, 4);
+                    ctx.restore();
+                  }
+                }
+              }}
+              key={`ruler-v-${zoomDisplay}`}
+              className="absolute top-0 left-0 z-20 pointer-events-none"
+            />
+          </>
+        )}
         {/* Minimap navigator */}
         <MiniMap
           layersRef={layersRef}
@@ -3621,9 +3735,23 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         })()}
       </div>
 
+      {/* Focus mode floating exit button */}
+      {focusMode && (
+        <button
+          className="absolute bottom-4 right-4 z-30 bg-card/90 backdrop-blur-sm border border-border/50 rounded-full p-3 shadow-lg text-foreground/70 hover:text-foreground hover:bg-card transition-all duration-200 active:scale-95"
+          onClick={() => setFocusMode(false)}
+          title="Exit Focus Mode"
+        >
+          <Focus className="h-5 w-5" />
+        </button>
+      )}
+
       {/* Bottom toolbar */}
       <div
-        className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 border-t bg-gradient-to-t from-card to-card/95 overflow-x-auto backdrop-blur-sm"
+        className={cn(
+          'flex-shrink-0 flex items-center gap-1.5 px-3 py-2.5 border-t bg-gradient-to-t from-card to-card/95 overflow-x-auto backdrop-blur-sm transition-all duration-300',
+          focusMode && 'translate-y-full opacity-0 pointer-events-none absolute bottom-0 left-0 right-0'
+        )}
         style={{ paddingBottom: 'calc(0.625rem + env(safe-area-inset-bottom, 0px))' }}
       >
         {/* Select tool */}
@@ -3990,6 +4118,34 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             </div>
           </PopoverContent>
         </Popover>
+
+        {/* Ruler toggle */}
+        <button
+          className={cn(
+            'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
+            showRulers
+              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+          )}
+          onClick={() => setShowRulers(!showRulers)}
+          title={showRulers ? 'Hide Rulers' : 'Show Rulers'}
+        >
+          <Ruler className="h-5 w-5" strokeWidth={showRulers ? 2.5 : 1.8} />
+        </button>
+
+        {/* Focus mode toggle */}
+        <button
+          className={cn(
+            'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
+            focusMode
+              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+          )}
+          onClick={() => setFocusMode(!focusMode)}
+          title={focusMode ? 'Exit Focus Mode' : 'Focus Mode'}
+        >
+          <Focus className="h-5 w-5" strokeWidth={focusMode ? 2.5 : 1.8} />
+        </button>
 
         <div className="flex-1" />
 
