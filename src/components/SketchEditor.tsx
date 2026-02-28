@@ -9,7 +9,7 @@ import {
   Pencil, PenTool, Highlighter, SprayCan, Brush,
   Layers, Eye, EyeOff, Maximize, Pipette, Grid3X3,
   MousePointer2, Copy, Clipboard, Trash, RotateCw, Focus,
-  Download, Share2, FileText, FileImage, FileCode,
+  Download, Share2, FileText, FileImage, FileCode, Play, Save, FolderOpen, Plus, Film,
   Type, Bold, Italic, Triangle, Star, Diamond, Hexagon, Navigation,
   Droplets, CircleDot, PaintbrushVertical, PenLine, StickyNote, ImagePlus, Sparkles,
   Heart, Cloud, MessageSquare, Pentagon, Moon, Cylinder,
@@ -1842,6 +1842,27 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   const [fillColor, setFillColor] = useState('#3b82f6');
   const [fillOpacity, setFillOpacity] = useState(0.3);
 
+  // Color palette manager state
+  const [savedPalettes, setSavedPalettes] = useState<{ name: string; colors: string[] }[]>(() => {
+    try {
+      const stored = localStorage.getItem('sketch-color-palettes');
+      return stored ? JSON.parse(stored) : [
+        { name: 'Default', colors: ['#1a1a1a', '#ffffff', '#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#6b7280'] },
+        { name: 'Pastel', colors: ['#fecdd3', '#fed7aa', '#fef08a', '#bbf7d0', '#bfdbfe', '#ddd6fe', '#fbcfe8', '#e2e8f0'] },
+        { name: 'Earth', colors: ['#292524', '#78716c', '#a16207', '#854d0e', '#365314', '#1e3a5f', '#44403c', '#d6d3d1'] },
+      ];
+    } catch { return []; }
+  });
+  const [activePaletteIdx, setActivePaletteIdx] = useState(0);
+  const [newPaletteName, setNewPaletteName] = useState('');
+
+  // Timelapse state
+  const [isPlayingTimelapse, setIsPlayingTimelapse] = useState(false);
+  const timelapseAbortRef = useRef(false);
+
+  // SVG import ref
+  const svgInputRef = useRef<HTMLInputElement>(null);
+
   // Selection state
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [selectionRotation, setSelectionRotation] = useState(0);
@@ -3174,6 +3195,150 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     }
   }, [handleDownloadPng]);
 
+  // --- Palette manager ---
+  const savePalettes = useCallback((palettes: { name: string; colors: string[] }[]) => {
+    setSavedPalettes(palettes);
+    try { localStorage.setItem('sketch-color-palettes', JSON.stringify(palettes)); } catch {}
+  }, []);
+
+  const addCurrentColorToPalette = useCallback(() => {
+    const updated = [...savedPalettes];
+    const palette = updated[activePaletteIdx];
+    if (palette && !palette.colors.includes(color)) {
+      palette.colors = [...palette.colors, color];
+      savePalettes(updated);
+    }
+  }, [savedPalettes, activePaletteIdx, color, savePalettes]);
+
+  const removeColorFromPalette = useCallback((colorToRemove: string) => {
+    const updated = [...savedPalettes];
+    const palette = updated[activePaletteIdx];
+    if (palette) {
+      palette.colors = palette.colors.filter(c => c !== colorToRemove);
+      savePalettes(updated);
+    }
+  }, [savedPalettes, activePaletteIdx, savePalettes]);
+
+  const createNewPalette = useCallback((name: string) => {
+    if (!name.trim()) return;
+    const updated = [...savedPalettes, { name: name.trim(), colors: [color] }];
+    savePalettes(updated);
+    setActivePaletteIdx(updated.length - 1);
+    setNewPaletteName('');
+  }, [savedPalettes, color, savePalettes]);
+
+  const deletePalette = useCallback((idx: number) => {
+    if (savedPalettes.length <= 1) return;
+    const updated = savedPalettes.filter((_, i) => i !== idx);
+    savePalettes(updated);
+    setActivePaletteIdx(Math.min(activePaletteIdx, updated.length - 1));
+  }, [savedPalettes, activePaletteIdx, savePalettes]);
+
+  // --- SVG Import ---
+  const handleSvgImport = useCallback((file: File) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const svgText = ev.target?.result as string;
+      // Create an image from SVG
+      const blob = new Blob([svgText], { type: 'image/svg+xml' });
+      const url = URL.createObjectURL(blob);
+      const img = new window.Image();
+      img.onload = () => {
+        const dataUrl = (() => {
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth || 300;
+          c.height = img.naturalHeight || 300;
+          const cx = c.getContext('2d');
+          if (cx) cx.drawImage(img, 0, 0);
+          return c.toDataURL('image/png');
+        })();
+        URL.revokeObjectURL(url);
+        imageCacheRef.current.set(dataUrl, img);
+        const layer = layersRef.current.find(l => l.id === activeLayerId);
+        if (!layer) return;
+        undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO - 1)), cloneLayers(layersRef.current)];
+        redoStackRef.current = [];
+        if (!layer.images) layer.images = [];
+        const maxDim = 300;
+        const nw = img.naturalWidth || 300;
+        const nh = img.naturalHeight || 300;
+        const scale = Math.min(1, maxDim / Math.max(nw, nh));
+        const w = nw * scale;
+        const h = nh * scale;
+        const zoom = zoomRef.current;
+        const pan = panRef.current;
+        const cw = canvasSizeRef.current.w;
+        const ch = canvasSizeRef.current.h;
+        const cx = (cw / 2 - pan.x) / zoom;
+        const cy = (ch / 2 - pan.y) / zoom;
+        const newImg: CanvasImageData = {
+          id: nextImageIdRef.current++,
+          x: cx - w / 2, y: cy - h / 2,
+          width: w, height: h,
+          src: dataUrl,
+          naturalWidth: nw, naturalHeight: nh,
+        };
+        layer.images.push(newImg);
+        setSelectedImageId(newImg.id);
+        setTool('select');
+        forceUpdate(n => n + 1);
+        redrawRef.current();
+        emitChangeRef.current();
+      };
+      img.src = url;
+    };
+    reader.readAsText(file);
+  }, [activeLayerId]);
+
+  // --- Timelapse Replay ---
+  const handleTimelapseReplay = useCallback(async () => {
+    if (isPlayingTimelapse) {
+      timelapseAbortRef.current = true;
+      return;
+    }
+    // Gather all strokes across all layers in order
+    const allStrokes: { layerId: number; stroke: Stroke }[] = [];
+    for (const layer of layersRef.current) {
+      for (const stroke of layer.strokes) {
+        allStrokes.push({ layerId: layer.id, stroke });
+      }
+    }
+    if (allStrokes.length === 0) return;
+
+    // Save current state
+    const savedLayers = cloneLayers(layersRef.current);
+    
+    // Clear all strokes
+    for (const layer of layersRef.current) {
+      layer.strokes = [];
+    }
+    redrawAll();
+
+    setIsPlayingTimelapse(true);
+    timelapseAbortRef.current = false;
+
+    // Replay stroke by stroke
+    for (let i = 0; i < allStrokes.length; i++) {
+      if (timelapseAbortRef.current) break;
+      const { layerId, stroke } = allStrokes[i];
+      const layer = layersRef.current.find(l => l.id === layerId);
+      if (layer) {
+        layer.strokes.push(stroke);
+        redrawAll();
+      }
+      // Delay proportional to stroke complexity
+      const delay = Math.min(200, Math.max(30, stroke.points.length * 2));
+      await new Promise(r => setTimeout(r, delay));
+    }
+
+    // Restore if aborted early
+    if (timelapseAbortRef.current) {
+      layersRef.current.splice(0, layersRef.current.length, ...savedLayers);
+      redrawAll();
+    }
+    setIsPlayingTimelapse(false);
+  }, [isPlayingTimelapse, redrawAll]);
+
   // --- Selection actions ---
 
   const handleCopySelection = useCallback(() => {
@@ -3871,6 +4036,18 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             e.target.value = '';
           }}
         />
+        {/* SVG import input */}
+        <input
+          ref={svgInputRef}
+          type="file"
+          accept=".svg,image/svg+xml"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleSvgImport(file);
+            e.target.value = '';
+          }}
+        />
 
         {/* Drawing tools popover */}
         <Popover>
@@ -4030,6 +4207,60 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
                 </div>
               </div>
             )}
+            {/* Palette Manager */}
+            <div className="mt-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-medium text-foreground">Palettes</p>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={addCurrentColorToPalette} title="Add current color to palette">
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </div>
+              {/* Palette tabs */}
+              <div className="flex gap-1 mb-1.5 overflow-x-auto">
+                {savedPalettes.map((p, idx) => (
+                  <button
+                    key={idx}
+                    className={cn('text-[9px] px-2 py-0.5 rounded-full whitespace-nowrap transition-colors',
+                      activePaletteIdx === idx ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                    )}
+                    onClick={() => setActivePaletteIdx(idx)}
+                    onDoubleClick={() => { if (savedPalettes.length > 1) deletePalette(idx); }}
+                    title={`${p.name} (double-click to delete)`}
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+              {/* Active palette colors */}
+              {savedPalettes[activePaletteIdx] && (
+                <div className="flex gap-1.5 flex-wrap">
+                  {savedPalettes[activePaletteIdx].colors.map((c, i) => (
+                    <button key={`pal-${c}-${i}`}
+                      className={cn('w-6 h-6 rounded-full border-2 transition-transform active:scale-90 relative group',
+                        color === c ? 'border-primary scale-110' : 'border-border')}
+                      style={{ backgroundColor: c }}
+                      onClick={() => applyColor(c)}
+                      onContextMenu={(e) => { e.preventDefault(); removeColorFromPalette(c); }}
+                      title={`${c} (right-click to remove)`}
+                    />
+                  ))}
+                </div>
+              )}
+              {/* New palette input */}
+              <div className="flex gap-1 mt-1.5">
+                <input
+                  type="text"
+                  value={newPaletteName}
+                  onChange={(e) => setNewPaletteName(e.target.value)}
+                  placeholder="New palette..."
+                  className="flex-1 text-[10px] bg-muted rounded px-2 py-0.5 border border-border text-foreground"
+                  onKeyDown={(e) => { if (e.key === 'Enter') createNewPalette(newPaletteName); }}
+                />
+                <Button variant="outline" size="sm" className="h-5 text-[9px] px-1.5" onClick={() => createNewPalette(newPaletteName)} disabled={!newPaletteName.trim()}>
+                  <Save className="h-2.5 w-2.5" />
+                </Button>
+              </div>
+            </div>
           </PopoverContent>
         </Popover>
 
@@ -4184,6 +4415,13 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
               </Button>
               <Button variant="ghost" size="sm" className="h-8 text-xs justify-start gap-2 px-2" onClick={handleNativeShare}>
                 <Share2 className="h-3.5 w-3.5" />Share
+              </Button>
+              <div className="border-t border-border my-1" />
+              <Button variant="ghost" size="sm" className="h-8 text-xs justify-start gap-2 px-2" onClick={() => svgInputRef.current?.click()}>
+                <FileCode className="h-3.5 w-3.5" />Import SVG
+              </Button>
+              <Button variant="ghost" size="sm" className="h-8 text-xs justify-start gap-2 px-2" onClick={handleTimelapseReplay}>
+                {isPlayingTimelapse ? <><Trash2 className="h-3.5 w-3.5" />Stop Timelapse</> : <><Film className="h-3.5 w-3.5" />Timelapse Replay</>}
               </Button>
             </div>
           </PopoverContent>
