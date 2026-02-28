@@ -1,9 +1,12 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { FloatingImage } from '@/types/note';
-import { Button } from '@/components/ui/button';
-import { ImagePlus, Trash2, Move } from 'lucide-react';
+import { Trash2, Move } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+
+export interface FloatingImageLayerHandle {
+  triggerAdd: () => void;
+}
 
 interface FloatingImageLayerProps {
   images: FloatingImage[];
@@ -16,7 +19,7 @@ const MIN_SIZE = 40;
 
 type HandleType = 'nw' | 'ne' | 'sw' | 'se';
 
-export const FloatingImageLayer = ({ images, onChange, containerRef }: FloatingImageLayerProps) => {
+export const FloatingImageLayer = forwardRef<FloatingImageLayerHandle, FloatingImageLayerProps>(({ images, onChange, containerRef }, ref) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const [resizing, setResizing] = useState<{ id: string; handle: HandleType; startX: number; startY: number; origX: number; origY: number; origW: number; origH: number } | null>(null);
@@ -26,6 +29,10 @@ export const FloatingImageLayer = ({ images, onChange, containerRef }: FloatingI
   const handleAddImage = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+
+  useImperativeHandle(ref, () => ({
+    triggerAdd: handleAddImage,
+  }), [handleAddImage]);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,15 +181,6 @@ export const FloatingImageLayer = ({ images, onChange, containerRef }: FloatingI
 
   return (
     <>
-      {/* Add Image FAB */}
-      <button
-        onClick={handleAddImage}
-        className="absolute bottom-20 right-4 z-30 h-11 w-11 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
-        title="Add floating image"
-      >
-        <ImagePlus className="h-5 w-5" />
-      </button>
-
       <input
         ref={fileInputRef}
         type="file"
@@ -272,4 +270,6 @@ export const FloatingImageLayer = ({ images, onChange, containerRef }: FloatingI
       )}
     </>
   );
-};
+});
+
+FloatingImageLayer.displayName = 'FloatingImageLayer';
