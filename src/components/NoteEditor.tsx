@@ -2,12 +2,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSubscription } from '@/contexts/SubscriptionContext';
 import { useTranslation } from 'react-i18next';
-import { Note, NoteType, StickyColor, VoiceRecording, Folder } from '@/types/note';
+import { Note, NoteType, StickyColor, VoiceRecording, Folder, FloatingImage } from '@/types/note';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RichTextEditor } from './RichTextEditor';
+import { FloatingImageLayer } from './FloatingImageLayer';
 import { LinkedInTextFormatter } from './LinkedInTextFormatter';
 import { getTableStyles, TableStyle } from './TableEditor';
 import { InlineFindReplace } from './InlineFindReplace';
@@ -107,6 +108,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
   const [content, setContent] = useState('');
   const [color, setColor] = useState<StickyColor>('yellow');
   const [images, setImages] = useState<string[]>([]);
+  const [floatingImages, setFloatingImages] = useState<FloatingImage[]>([]);
   const [voiceRecordings, setVoiceRecordings] = useState<VoiceRecording[]>([]);
   const [tableRows, setTableRows] = useState(3);
   const [tableCols, setTableCols] = useState(3);
@@ -267,6 +269,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
       setColor(note.color || 'yellow');
       setCustomColor(note.customColor);
       setImages(note.images || []);
+      setFloatingImages(note.floatingImages || []);
       setVoiceRecordings(note.voiceRecordings || []);
       setSelectedFolderId(note.folderId);
       setFontFamily(note.fontFamily || '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif');
@@ -337,6 +340,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
       setColor('yellow');
       setCustomColor(undefined);
       setImages([]);
+      setFloatingImages([]);
       setVoiceRecordings([]);
       setSelectedFolderId(defaultFolderId);
       setFontWeight('400');
@@ -420,6 +424,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
       color: noteType === 'sticky' ? color : undefined,
       customColor: noteType !== 'sticky' && noteType !== 'voice' ? customColor : undefined,
       images: noteType === 'sticky' ? undefined : images,
+      floatingImages: (noteType === 'regular' || noteType === 'sticky' || noteType === 'lined' || noteType === 'textformat') && floatingImages.length > 0 ? floatingImages : undefined,
       voiceRecordings,
       folderId: selectedFolderId || noteType,
       fontFamily: (noteType === 'sticky' || noteType === 'lined' || noteType === 'regular' || noteType === 'textformat') ? fontFamily : undefined,
@@ -461,6 +466,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     color,
     customColor,
     images,
+    floatingImages,
     voiceRecordings,
     selectedFolderId,
     fontFamily,
@@ -1707,38 +1713,47 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
               </div>
             </div>
           ) : (
-            <RichTextEditor
-              content={content}
-              onChange={setContent}
-              onImageAdd={handleImageAdd}
-              allowImages={true}
-              showTable={noteType !== 'lined'}
-              className={cn(
-                noteType === 'lined' && 'lined-note',
-                noteType === 'sticky' && 'sticky-note-editor',
-                noteType === 'textformat' && 'textformat-note'
+            <div className="relative flex-1 min-h-0">
+              <RichTextEditor
+                content={content}
+                onChange={setContent}
+                onImageAdd={handleImageAdd}
+                allowImages={true}
+                showTable={noteType !== 'lined'}
+                className={cn(
+                  noteType === 'lined' && 'lined-note',
+                  noteType === 'sticky' && 'sticky-note-editor',
+                  noteType === 'textformat' && 'textformat-note'
+                )}
+                toolbarPosition="bottom"
+                title={title}
+                onTitleChange={setTitle}
+                showTitle={true}
+                fontFamily={fontFamily}
+                onFontFamilyChange={setFontFamily}
+                fontSize={fontSize}
+                onFontSizeChange={setFontSize}
+                fontWeight={fontWeight}
+                onFontWeightChange={setFontWeight}
+                letterSpacing={letterSpacing}
+                onLetterSpacingChange={setLetterSpacing}
+                isItalic={isItalic}
+                onItalicChange={setIsItalic}
+                lineHeight={lineHeight}
+                onLineHeightChange={setLineHeight}
+                onInsertNoteLink={() => setIsNoteLinkingOpen(true)}
+                onVoiceRecord={() => setShowVoiceRecorder(true)}
+                externalEditorRef={editorRef}
+                isFindReplaceOpen={isFindReplaceOpen}
+              />
+              {/* Floating images layer for regular/sticky/lined notes */}
+              {(noteType === 'regular' || noteType === 'sticky' || noteType === 'lined' || noteType === 'textformat') && (
+                <FloatingImageLayer
+                  images={floatingImages}
+                  onChange={setFloatingImages}
+                />
               )}
-              toolbarPosition="bottom"
-              title={title}
-              onTitleChange={setTitle}
-              showTitle={true}
-              fontFamily={fontFamily}
-              onFontFamilyChange={setFontFamily}
-              fontSize={fontSize}
-              onFontSizeChange={setFontSize}
-              fontWeight={fontWeight}
-              onFontWeightChange={setFontWeight}
-              letterSpacing={letterSpacing}
-              onLetterSpacingChange={setLetterSpacing}
-              isItalic={isItalic}
-              onItalicChange={setIsItalic}
-              lineHeight={lineHeight}
-              onLineHeightChange={setLineHeight}
-              onInsertNoteLink={() => setIsNoteLinkingOpen(true)}
-              onVoiceRecord={() => setShowVoiceRecorder(true)}
-              externalEditorRef={editorRef}
-              isFindReplaceOpen={isFindReplaceOpen}
-            />
+            </div>
           )}
         </ErrorBoundary>
       </div>

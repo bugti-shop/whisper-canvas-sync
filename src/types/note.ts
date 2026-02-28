@@ -221,6 +221,17 @@ export interface NoteConflictCopy {
   resolved: boolean;
 }
 
+export interface FloatingImage {
+  id: string;
+  src: string; // base64 data URL
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  naturalWidth: number;
+  naturalHeight: number;
+}
+
 export interface Note {
   id: string;
   type: NoteType;
@@ -229,6 +240,7 @@ export interface Note {
   color?: StickyColor;
   customColor?: string; // Custom background color for non-sticky notes (hex)
   images?: string[];
+  floatingImages?: FloatingImage[];
   voiceRecordings: VoiceRecording[];
   folderId?: string;
   todoItems?: TodoItem[];
