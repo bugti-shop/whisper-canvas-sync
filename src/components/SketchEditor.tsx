@@ -11,7 +11,7 @@ import {
   MousePointer2, Copy, Clipboard, Trash, RotateCw,
   Download, Share2, FileText, FileImage, FileCode,
   Type, Bold, Italic, Triangle, Star, Diamond, Hexagon, Navigation,
-  Droplets, CircleDot, PaintbrushVertical, PenLine, StickyNote, ImagePlus,
+  Droplets, CircleDot, PaintbrushVertical, PenLine, StickyNote, ImagePlus, Sparkles,
   Heart, Cloud, MessageSquare, Pentagon, Moon, Cylinder,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -20,7 +20,7 @@ import { jsPDF } from 'jspdf';
 
 // --- Types ---
 
-type DrawToolType = 'pencil' | 'pen' | 'marker' | 'highlighter' | 'calligraphy' | 'spray' | 'fountain' | 'crayon' | 'watercolor' | 'dotpen';
+type DrawToolType = 'pencil' | 'pen' | 'marker' | 'highlighter' | 'calligraphy' | 'spray' | 'fountain' | 'crayon' | 'watercolor' | 'dotpen' | 'neon';
 type ShapeToolType = 'line' | 'rect' | 'circle' | 'arrow' | 'triangle' | 'star' | 'diamond' | 'polygon' | 'pentagon' | 'heart' | 'moon' | 'cloud' | 'speechBubble' | 'cylinder' | 'trapezoid' | 'cone';
 type ToolType = DrawToolType | ShapeToolType | 'eraser' | 'select' | 'text' | 'sticky' | 'image';
 type BackgroundType = 'plain' | 'grid-sm' | 'grid-lg' | 'dotted' | 'ruled' | 'isometric' | 'dark';
@@ -155,6 +155,7 @@ const DRAW_TOOLS: { id: DrawToolType; icon: typeof Pen; label: string }[] = [
   { id: 'watercolor', icon: Droplets, label: 'Watercolor' },
   { id: 'spray', icon: SprayCan, label: 'Spray' },
   { id: 'dotpen', icon: CircleDot, label: 'Dot Pen' },
+  { id: 'neon', icon: Sparkles, label: 'Neon Glow' },
 ];
 
 const BACKGROUNDS: { id: BackgroundType; label: string }[] = [
@@ -1073,6 +1074,62 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
       }
       break;
     }
+    case 'neon': {
+      // Neon glow pen: multi-layer glow effect with bright core
+      const neonW = stroke.width * 1.2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      // Outer glow (widest, most transparent)
+      ctx.shadowColor = stroke.color;
+      ctx.shadowBlur = neonW * 6;
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.15);
+      ctx.lineWidth = neonW * 4;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      }
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Mid glow
+      ctx.shadowBlur = neonW * 3;
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.4);
+      ctx.lineWidth = neonW * 2;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      }
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Bright core
+      ctx.shadowBlur = neonW * 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = neonW * 0.6;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      }
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Inner bright color line
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.9);
+      ctx.lineWidth = neonW * 0.9;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      }
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      break;
+    }
   }
   ctx.restore();
 };
@@ -1698,6 +1755,40 @@ const PenPreviewCanvas = memo(({ penType, isActive, currentColor }: { penType: D
           ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
           ctx.fill();
         }
+        break;
+      }
+      case 'neon': {
+        // Preview: neon glow with shadow
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.shadowColor = c;
+        ctx.shadowBlur = 8;
+        ctx.strokeStyle = c;
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        points.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else {
+            const prev = points[i - 1];
+            ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pt.x) / 2, (prev.y + pt.y) / 2);
+          }
+        });
+        ctx.stroke();
+        // White core
+        ctx.shadowBlur = 4;
+        ctx.strokeStyle = '#ffffff';
+        ctx.globalAlpha = 0.9;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        points.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else {
+            const prev = points[i - 1];
+            ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + pt.x) / 2, (prev.y + pt.y) / 2);
+          }
+        });
+        ctx.stroke();
         break;
       }
     }
