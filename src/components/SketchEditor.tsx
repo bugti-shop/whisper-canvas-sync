@@ -1649,6 +1649,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   const isDrawingRef = useRef(false);
   const currentStrokeRef = useRef<Stroke | null>(null);
   const lastPointRef = useRef<Point | null>(null);
+  const currentPressureRef = useRef(0);
+  const [showPressure, setShowPressure] = useState(false);
+  const [pressureValue, setPressureValue] = useState(0);
   const rafRef = useRef<number>(0);
   const canvasSizeRef = useRef({ w: 0, h: 0 });
 
@@ -2438,6 +2441,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
 
     canvas.setPointerCapture(e.pointerId);
     isDrawingRef.current = true;
+    currentPressureRef.current = e.pressure > 0 ? e.pressure : 0.5;
+    setPressureValue(currentPressureRef.current);
+    setShowPressure(true);
 
     const point = getPos(e);
     lastPointRef.current = point;
@@ -2639,6 +2645,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     if (isPalmTouch(e)) return;
 
     const point = getPos(e);
+    currentPressureRef.current = e.pressure > 0 ? e.pressure : 0.5;
+    setPressureValue(currentPressureRef.current);
 
     if (isShapeTool(currentStrokeRef.current.tool)) {
       const snapped = snapEnabled
@@ -2753,6 +2761,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     if (!isDrawingRef.current || !currentStrokeRef.current) return;
     isDrawingRef.current = false;
     lastPointRef.current = null;
+    setShowPressure(false);
 
     const finishedStroke = currentStrokeRef.current;
     const minPoints = finishedStroke.tool === 'spray' ? 1 : 2;
@@ -3172,6 +3181,38 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         {eyedropperActive && (
           <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-lg px-2 py-1 text-[10px] flex items-center gap-1">
             <Pipette className="h-3 w-3" />Tap to pick color
+          </div>
+        )}
+        {/* Pressure sensitivity indicator */}
+        {showPressure && !isShapeTool(tool) && tool !== 'eraser' && tool !== 'select' && tool !== 'text' && tool !== 'sticky' && tool !== 'image' && (
+          <div className="absolute top-2 right-14 bg-card/90 backdrop-blur-sm border border-border/50 rounded-xl px-2.5 py-1.5 flex items-center gap-2 pointer-events-none transition-opacity duration-200" style={{ opacity: showPressure ? 1 : 0 }}>
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[8px] text-muted-foreground font-medium uppercase tracking-wider">Pressure</span>
+              <span className="text-xs font-bold text-foreground tabular-nums">{Math.round(pressureValue * 100)}%</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                <div 
+                  className="h-full rounded-full transition-all duration-75"
+                  style={{ 
+                    width: `${Math.round(pressureValue * 100)}%`,
+                    backgroundColor: pressureValue < 0.3 ? 'hsl(var(--muted-foreground))' : pressureValue < 0.7 ? 'hsl(var(--primary))' : 'hsl(var(--destructive))',
+                  }} 
+                />
+              </div>
+              <div className="flex justify-between w-16">
+                <span className="text-[6px] text-muted-foreground">Light</span>
+                <span className="text-[6px] text-muted-foreground">Heavy</span>
+              </div>
+            </div>
+            <div 
+              className="w-3 h-3 rounded-full border border-border/50 transition-all duration-75"
+              style={{ 
+                backgroundColor: color,
+                transform: `scale(${0.5 + pressureValue * 0.8})`,
+                opacity: 0.4 + pressureValue * 0.6,
+              }}
+            />
           </div>
         )}
         {/* Selection floating actions */}
