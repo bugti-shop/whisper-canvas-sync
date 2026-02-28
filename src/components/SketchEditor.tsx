@@ -52,6 +52,7 @@ interface StickyNoteData {
   text: string;
   color: string;
   fontSize: number;
+  rotation?: number;
 }
 
 interface CanvasImageData {
@@ -1423,9 +1424,10 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     noteId: number;
     startX: number; startY: number;
     origX: number; origY: number;
-    type: 'move' | 'resize';
+    type: 'move' | 'resize' | 'rotate';
     origW?: number; origH?: number;
     handle?: 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
+    origRotation?: number;
   } | null>(null);
   const stickyLastTapRef = useRef<{ time: number; id: number }>({ time: 0, id: -1 });
 
@@ -1653,6 +1655,14 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       // Draw sticky notes
       for (const sn of (layer.stickyNotes || [])) {
         ctx.save();
+        // Apply rotation if any
+        if (sn.rotation) {
+          const cx = sn.x + sn.width / 2;
+          const cy = sn.y + sn.height / 2;
+          ctx.translate(cx, cy);
+          ctx.rotate(sn.rotation);
+          ctx.translate(-cx, -cy);
+        }
         // Shadow
         ctx.shadowColor = 'rgba(0,0,0,0.15)';
         ctx.shadowBlur = 8;
@@ -1706,9 +1716,17 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           }
         }
         ctx.restore();
-        // Draw selection handles if this sticky is selected (8 handles like images)
+        // Draw selection handles if this sticky is selected (8 handles + rotate)
         if (sn.id === selectedStickyId) {
           ctx.save();
+          // Apply rotation transform for handles too
+          if (sn.rotation) {
+            const cx = sn.x + sn.width / 2;
+            const cy = sn.y + sn.height / 2;
+            ctx.translate(cx, cy);
+            ctx.rotate(sn.rotation);
+            ctx.translate(-cx, -cy);
+          }
           ctx.strokeStyle = 'hsl(210 100% 50%)';
           ctx.lineWidth = 2 / zoom;
           ctx.setLineDash([6 / zoom, 4 / zoom]);
@@ -1730,6 +1748,19 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             ctx.fill();
             ctx.stroke();
           }
+          // Rotate handle (above top center)
+          const rotX = sn.x + sn.width / 2;
+          const rotY = sn.y - 24 / zoom;
+          ctx.strokeStyle = 'hsl(210 100% 50%)';
+          ctx.lineWidth = 1 / zoom;
+          ctx.beginPath(); ctx.moveTo(sn.x + sn.width / 2, sn.y); ctx.lineTo(rotX, rotY); ctx.stroke();
+          ctx.beginPath(); ctx.arc(rotX, rotY, hs * 0.7, 0, Math.PI * 2);
+          ctx.fillStyle = '#fff'; ctx.fill();
+          ctx.strokeStyle = 'hsl(210 100% 50%)'; ctx.lineWidth = 1.5 / zoom; ctx.stroke();
+          // Arrow icon in rotate handle
+          ctx.beginPath();
+          ctx.arc(rotX, rotY, hs * 0.4, -Math.PI * 0.7, Math.PI * 0.3);
+          ctx.strokeStyle = 'hsl(210 100% 50%)'; ctx.lineWidth = 1 / zoom; ctx.stroke();
           ctx.restore();
         }
       }
@@ -1921,9 +1952,24 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           }
           stickyLastTapRef.current = { time: now, id: sn.id };
 
-          // If already selected, check handles for resize or body for move
+          // If already selected, check rotate handle first, then resize handles, then body for move
           if (selectedStickyId === sn.id) {
             const ha = 20 / zoomRef.current;
+            // Check rotate handle (above top center)
+            const rotHX = sn.x + sn.width / 2;
+            const rotHY = sn.y - 24 / zoomRef.current;
+            if (Math.abs(point.x - rotHX) < ha && Math.abs(point.y - rotHY) < ha) {
+              undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO - 1)), cloneLayers(layersRef.current)];
+              redoStackRef.current = [];
+              stickyDragRef.current = {
+                noteId: sn.id, startX: point.x, startY: point.y,
+                origX: sn.x, origY: sn.y, type: 'rotate',
+                origW: sn.width, origH: sn.height,
+                origRotation: sn.rotation || 0,
+              };
+              redrawAll();
+              return;
+            }
             type StickyHandleType = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
             const handles: { key: StickyHandleType; cx: number; cy: number }[] = [
               { key: 'tl', cx: sn.x, cy: sn.y },
@@ -2053,9 +2099,24 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           }
           stickyLastTapRef.current = { time: now, id: sn.id };
 
-          // If already selected, check handles for resize or body for move
+          // If already selected, check rotate handle first, then resize handles, then body for move
           if (selectedStickyId === sn.id) {
             const ha = 20 / zoomRef.current;
+            // Check rotate handle (above top center)
+            const rotHX = sn.x + sn.width / 2;
+            const rotHY = sn.y - 24 / zoomRef.current;
+            if (Math.abs(point.x - rotHX) < ha && Math.abs(point.y - rotHY) < ha) {
+              undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO - 1)), cloneLayers(layersRef.current)];
+              redoStackRef.current = [];
+              stickyDragRef.current = {
+                noteId: sn.id, startX: point.x, startY: point.y,
+                origX: sn.x, origY: sn.y, type: 'rotate',
+                origW: sn.width, origH: sn.height,
+                origRotation: sn.rotation || 0,
+              };
+              redrawAll();
+              return;
+            }
             type StickyHandleType = 'tl' | 'tr' | 'bl' | 'br' | 't' | 'b' | 'l' | 'r';
             const handles: { key: StickyHandleType; cx: number; cy: number }[] = [
               { key: 'tl', cx: sn.x, cy: sn.y },
@@ -2236,6 +2297,13 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       if (drag.type === 'move') {
         sn.x = drag.origX + dx;
         sn.y = drag.origY + dy;
+      } else if (drag.type === 'rotate') {
+        // Calculate angle from center of sticky to pointer
+        const cx = sn.x + sn.width / 2;
+        const cy = sn.y + sn.height / 2;
+        const startAngle = Math.atan2(drag.startY - cy, drag.startX - cx);
+        const currentAngle = Math.atan2(point.y - cy, point.x - cx);
+        sn.rotation = (drag.origRotation || 0) + (currentAngle - startAngle);
       } else {
         const oW = drag.origW || 150;
         const oH = drag.origH || 150;
