@@ -106,7 +106,8 @@ type HandleType = 'tl' | 'tr' | 'bl' | 'br' | 'rotate' | 'body';
 // --- Constants ---
 
 const MAX_UNDO = 50;
-const MIN_POINT_DISTANCE = 1.5;
+const MIN_POINT_DISTANCE = 1;
+const SMOOTHING_FACTOR = 0.3; // 0 = no smoothing, 1 = max smoothing
 const PALM_REJECTION_RADIUS = 20;
 const MAX_LAYERS = 3;
 const MIN_ZOOM = 0.25;
@@ -2707,6 +2708,11 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       if (last) {
         const dx = point.x - last.x; const dy = point.y - last.y;
         if (dx * dx + dy * dy < MIN_POINT_DISTANCE * MIN_POINT_DISTANCE) return;
+        // Apply exponential moving average smoothing for silky lines
+        point.x = last.x + (point.x - last.x) * (1 - SMOOTHING_FACTOR);
+        point.y = last.y + (point.y - last.y) * (1 - SMOOTHING_FACTOR);
+        // Smooth pressure too to avoid sudden width jumps
+        point.pressure = last.pressure * SMOOTHING_FACTOR + point.pressure * (1 - SMOOTHING_FACTOR);
       }
       lastPointRef.current = point;
       currentStrokeRef.current.points.push(point);
