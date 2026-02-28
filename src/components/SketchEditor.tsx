@@ -9,7 +9,7 @@ import {
   Pencil, PenTool, Highlighter, SprayCan, Brush,
   Layers, Eye, EyeOff, Maximize, Pipette, Grid3X3,
   MousePointer2, Copy, Clipboard, Trash, RotateCw, Focus,
-  Download, Share2, FileText, FileImage, FileCode, Play, Save, FolderOpen, Plus, Film, FlipHorizontal, FlipVertical,
+  Download, Share2, FileText, FileImage, FileCode, Play, Save, FolderOpen, Plus, Film, FlipHorizontal, FlipVertical, ScissorsLineDashed,
   Type, Bold, Italic, Triangle, Star, Diamond, Hexagon, Navigation,
   Droplets, CircleDot, PaintbrushVertical, PenLine, StickyNote, ImagePlus, Sparkles,
   Heart, Cloud, MessageSquare, Pentagon, Moon, Cylinder,
@@ -74,6 +74,8 @@ interface Stroke {
   tool: ToolType;
   fillColor?: string;
   fillOpacity?: number;
+  pressureOpacity?: boolean;
+  isClipMask?: boolean;
 }
 
 interface Layer {
@@ -544,11 +546,22 @@ const drawArrowhead = (ctx: CanvasRenderingContext2D, from: Point, to: Point, si
   ctx.stroke();
 };
 
-const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
+const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke, asClipPath?: boolean) => {
   if (stroke.points.length < 1) return;
   ctx.save();
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
+
+  // Apply pressure-based opacity if enabled on this stroke
+  const usePressureOpacity = stroke.pressureOpacity && !asClipPath;
+
+  // For pressure-based opacity, compute average pressure and apply as global opacity multiplier
+  if (usePressureOpacity && stroke.points.length > 0) {
+    let avgPressure = 0;
+    for (const p of stroke.points) avgPressure += p.pressure;
+    avgPressure = Math.max(0.15, avgPressure / stroke.points.length);
+    ctx.globalAlpha = avgPressure;
+  }
 
   const start = stroke.points[0];
   const end = stroke.points[stroke.points.length - 1];
@@ -1841,6 +1854,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   const [fillEnabled, setFillEnabled] = useState(false);
   const [fillColor, setFillColor] = useState('#3b82f6');
   const [fillOpacity, setFillOpacity] = useState(0.3);
+  const [pressureOpacityEnabled, setPressureOpacityEnabled] = useState(false);
 
   // Color palette manager state
   const [savedPalettes, setSavedPalettes] = useState<{ name: string; colors: string[] }[]>(() => {
@@ -2087,7 +2101,58 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       if (!layer.visible) continue;
       ctx.save();
       ctx.globalAlpha = layer.opacity;
-      for (const stroke of layer.strokes) drawStroke(ctx, stroke);
+
+      // Render strokes with clipping mask support
+      for (let si = 0; si < layer.strokes.length; si++) {
+        const stroke = layer.strokes[si];
+        if (stroke.isClipMask && isShapeTool(stroke.tool)) {
+          // This shape acts as a clipping mask — draw its outline with dashed indicator and clip subsequent strokes
+          ctx.save();
+          // Draw the shape outline itself with clip mask indicator (dashed)
+          drawStroke(ctx, stroke);
+          // Draw dashed clip indicator overlay
+          ctx.setLineDash([6 / zoom, 4 / zoom]);
+          ctx.strokeStyle = 'hsl(280 80% 60% / 0.6)';
+          ctx.lineWidth = 1.5 / zoom;
+          const s2 = stroke.points[0], e2 = stroke.points[stroke.points.length - 1];
+          if (stroke.tool === 'rect') {
+            ctx.strokeRect(Math.min(s2.x, e2.x), Math.min(s2.y, e2.y), Math.abs(e2.x - s2.x), Math.abs(e2.y - s2.y));
+          } else if (stroke.tool === 'circle') {
+            ctx.beginPath(); ctx.ellipse((s2.x + e2.x) / 2, (s2.y + e2.y) / 2, Math.abs(e2.x - s2.x) / 2, Math.abs(e2.y - s2.y) / 2, 0, 0, Math.PI * 2); ctx.stroke();
+          }
+          ctx.setLineDash([]);
+          // Now create the clip path from the shape
+          ctx.beginPath();
+          const s = stroke.points[0], e = stroke.points[stroke.points.length - 1];
+          switch (stroke.tool) {
+            case 'rect':
+              ctx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y));
+              break;
+            case 'circle':
+              ctx.ellipse((s.x + e.x) / 2, (s.y + e.y) / 2, Math.abs(e.x - s.x) / 2, Math.abs(e.y - s.y) / 2, 0, 0, Math.PI * 2);
+              break;
+            case 'triangle': {
+              const cx2 = (s.x + e.x) / 2;
+              ctx.moveTo(cx2, s.y); ctx.lineTo(e.x, e.y); ctx.lineTo(s.x, e.y); ctx.closePath();
+              break;
+            }
+            default:
+              // For other shapes, use a bounding rect as clip region
+              ctx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y));
+              break;
+          }
+          ctx.clip();
+          // Continue rendering subsequent strokes clipped until we hit the end or another clip mask
+          for (let ci = si + 1; ci < layer.strokes.length; ci++) {
+            if (layer.strokes[ci].isClipMask) break;
+            drawStroke(ctx, layer.strokes[ci]);
+            si = ci; // advance outer index
+          }
+          ctx.restore();
+        } else {
+          drawStroke(ctx, stroke);
+        }
+      }
       // Draw text annotations
       for (const ta of (layer.textAnnotations || [])) {
         ctx.save();
@@ -2773,8 +2838,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       width: strokeWidth,
       tool,
       ...(isShapeTool(tool) && fillEnabled ? { fillColor, fillOpacity } : {}),
+      ...(pressureOpacityEnabled && !isShapeTool(tool) && tool !== 'eraser' ? { pressureOpacity: true } : {}),
     };
-  }, [color, strokeWidth, tool, activeLayerId, redrawAll, eyedropperActive, applyColor, toolOpacity, selectedIndices, selectionRotation, clearSelection, fillEnabled, fillColor, fillOpacity, snapEnabled, background]);
+  }, [color, strokeWidth, tool, activeLayerId, redrawAll, eyedropperActive, applyColor, toolOpacity, selectedIndices, selectionRotation, clearSelection, fillEnabled, fillColor, fillOpacity, snapEnabled, background, pressureOpacityEnabled]);
 
   const onPointerMove = useCallback((e: PointerEvent) => {
     if (e.pointerType === 'touch' && activeTouchesRef.current.has(e.pointerId)) {
@@ -3830,6 +3896,37 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={handleDeleteSelection} title="Delete">
               <Trash className="h-3.5 w-3.5" />
             </Button>
+            {/* Clip mask toggle for selected shape strokes */}
+            {(() => {
+              const selStrokes = getSelectedStrokes();
+              const hasShapeSelected = selStrokes.some(s => isShapeTool(s.tool));
+              if (!hasShapeSelected) return null;
+              const allClipped = selStrokes.filter(s => isShapeTool(s.tool)).every(s => s.isClipMask);
+              return (
+                <Button
+                  variant={allClipped ? "default" : "ghost"}
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => {
+                    const layer = layersRef.current.find(l => l.id === activeLayerId);
+                    if (!layer) return;
+                    undoStackRef.current = [...undoStackRef.current.slice(-(50 - 1)), cloneLayers(layersRef.current)];
+                    redoStackRef.current = [];
+                    for (const idx of selectedIndices) {
+                      const s = layer.strokes[idx];
+                      if (s && isShapeTool(s.tool)) {
+                        s.isClipMask = !allClipped;
+                      }
+                    }
+                    redrawAll();
+                    emitChange();
+                  }}
+                  title={allClipped ? "Remove Clip Mask" : "Set as Clip Mask"}
+                >
+                  <ScissorsLineDashed className="h-3.5 w-3.5" />
+                </Button>
+              );
+            })()}
           </div>
         )}
         {/* Selected sticky note floating actions */}
@@ -4414,6 +4511,20 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             </div>
           </PopoverContent>
         </Popover>
+
+        {/* Pressure opacity toggle */}
+        <button
+          className={cn(
+            'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
+            pressureOpacityEnabled
+              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+          )}
+          onClick={() => setPressureOpacityEnabled(!pressureOpacityEnabled)}
+          title={pressureOpacityEnabled ? 'Disable Pressure Opacity' : 'Enable Pressure Opacity'}
+        >
+          <Droplets className="h-5 w-5" strokeWidth={pressureOpacityEnabled ? 2.5 : 1.8} />
+        </button>
 
         {/* Symmetry mode toggle */}
         <Popover>
