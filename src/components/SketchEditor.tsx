@@ -9,7 +9,7 @@ import {
   Pencil, PenTool, Highlighter, SprayCan, Brush,
   Layers, Eye, EyeOff, Maximize, Pipette, Grid3X3,
   MousePointer2, Copy, Clipboard, Trash, RotateCw, Focus,
-  Download, Share2, FileText, FileImage, FileCode, Play, Save, FolderOpen, Plus, Film,
+  Download, Share2, FileText, FileImage, FileCode, Play, Save, FolderOpen, Plus, Film, FlipHorizontal, FlipVertical,
   Type, Bold, Italic, Triangle, Star, Diamond, Hexagon, Navigation,
   Droplets, CircleDot, PaintbrushVertical, PenLine, StickyNote, ImagePlus, Sparkles,
   Heart, Cloud, MessageSquare, Pentagon, Moon, Cylinder,
@@ -1863,6 +1863,10 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   // SVG import ref
   const svgInputRef = useRef<HTMLInputElement>(null);
 
+  // Symmetry mode state
+  type SymmetryMode = 'off' | 'horizontal' | 'vertical' | 'both';
+  const [symmetryMode, setSymmetryMode] = useState<SymmetryMode>('off');
+
   // Selection state
   const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [selectionRotation, setSelectionRotation] = useState(0);
@@ -2244,6 +2248,19 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       }
       if (layer.id === activeLayerId && currentStrokeRef.current) {
         drawStroke(ctx, currentStrokeRef.current);
+        // Draw live mirrored strokes
+        if (symmetryMode !== 'off') {
+          const cw = canvasSizeRef.current.w;
+          const ch = canvasSizeRef.current.h;
+          const centerX = (cw / 2 - pan.x) / zoom;
+          const centerY = (ch / 2 - pan.y) / zoom;
+          const cs = currentStrokeRef.current;
+          const mirrorH: Stroke = { ...cs, points: cs.points.map(p => ({ ...p, x: 2 * centerX - p.x })) };
+          const mirrorV: Stroke = { ...cs, points: cs.points.map(p => ({ ...p, y: 2 * centerY - p.y })) };
+          if (symmetryMode === 'horizontal' || symmetryMode === 'both') drawStroke(ctx, mirrorH);
+          if (symmetryMode === 'vertical' || symmetryMode === 'both') drawStroke(ctx, mirrorV);
+          if (symmetryMode === 'both') drawStroke(ctx, { ...cs, points: cs.points.map(p => ({ ...p, x: 2 * centerX - p.x, y: 2 * centerY - p.y })) });
+        }
       }
       ctx.restore();
     }
@@ -2273,6 +2290,22 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         ctx.strokeRect(mx, my, mw, mh);
         ctx.setLineDash([]);
       }
+    }
+
+    // Draw symmetry guide lines
+    if (symmetryMode !== 'off') {
+      const centerX = (canvasSizeRef.current.w / 2 - pan.x) / zoom;
+      const centerY = (canvasSizeRef.current.h / 2 - pan.y) / zoom;
+      ctx.setLineDash([8 / zoom, 6 / zoom]);
+      ctx.lineWidth = 1 / zoom;
+      ctx.strokeStyle = 'hsl(280 80% 60% / 0.5)';
+      if (symmetryMode === 'horizontal' || symmetryMode === 'both') {
+        ctx.beginPath(); ctx.moveTo(centerX, -10000); ctx.lineTo(centerX, 10000); ctx.stroke();
+      }
+      if (symmetryMode === 'vertical' || symmetryMode === 'both') {
+        ctx.beginPath(); ctx.moveTo(-10000, centerY); ctx.lineTo(10000, centerY); ctx.stroke();
+      }
+      ctx.setLineDash([]);
     }
 
     ctx.restore();
@@ -3058,6 +3091,38 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       const layer = layersRef.current.find(l => l.id === activeLayerId);
       if (layer) {
         layer.strokes = [...layer.strokes, finishedStroke];
+
+        // Add mirrored strokes for symmetry mode
+        if (symmetryMode !== 'off') {
+          const cw = canvasSizeRef.current.w;
+          const ch = canvasSizeRef.current.h;
+          const zoom = zoomRef.current;
+          const pan = panRef.current;
+          // Center in world coordinates
+          const centerX = (cw / 2 - pan.x) / zoom;
+          const centerY = (ch / 2 - pan.y) / zoom;
+
+          const mirrorH = (s: Stroke): Stroke => ({
+            ...s,
+            points: s.points.map(p => ({ ...p, x: 2 * centerX - p.x })),
+          });
+          const mirrorV = (s: Stroke): Stroke => ({
+            ...s,
+            points: s.points.map(p => ({ ...p, y: 2 * centerY - p.y })),
+          });
+
+          if (symmetryMode === 'horizontal' || symmetryMode === 'both') {
+            layer.strokes.push(mirrorH(finishedStroke));
+          }
+          if (symmetryMode === 'vertical' || symmetryMode === 'both') {
+            layer.strokes.push(mirrorV(finishedStroke));
+          }
+          if (symmetryMode === 'both') {
+            // Diagonal mirror (both axes)
+            layer.strokes.push(mirrorV(mirrorH(finishedStroke)));
+          }
+        }
+
         // Auto-select shapes after drawing
         if (isShapeTool(finishedStroke.tool)) {
           const newIdx = layer.strokes.length - 1;
@@ -3070,7 +3135,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     currentStrokeRef.current = null;
     redrawAll();
     emitChange();
-  }, [redrawAll, emitChange, activeLayerId, tool]);
+  }, [redrawAll, emitChange, activeLayerId, tool, symmetryMode]);
 
   // --- Wheel zoom ---
 
@@ -4350,7 +4415,45 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           </PopoverContent>
         </Popover>
 
-        {/* Ruler toggle */}
+        {/* Symmetry mode toggle */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
+                symmetryMode !== 'off'
+                  ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
+                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+              )}
+              title="Symmetry Mode"
+            >
+              <FlipHorizontal className="h-5 w-5" strokeWidth={symmetryMode !== 'off' ? 2.5 : 1.8} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-2 bg-card" align="center" side="top">
+            <p className="text-[10px] font-medium text-foreground mb-1.5 px-1">Symmetry Mode</p>
+            <div className="flex flex-col gap-1">
+              {([
+                { id: 'off' as const, label: 'Off', icon: null },
+                { id: 'horizontal' as const, label: 'Horizontal', icon: FlipHorizontal },
+                { id: 'vertical' as const, label: 'Vertical', icon: FlipVertical },
+                { id: 'both' as const, label: 'Both Axes', icon: null },
+              ]).map((s) => (
+                <Button
+                  key={s.id}
+                  variant={symmetryMode === s.id ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-8 text-xs justify-start gap-2 px-2"
+                  onClick={() => setSymmetryMode(s.id)}
+                >
+                  {s.icon ? <s.icon className="h-3.5 w-3.5" /> : <span className="w-3.5" />}
+                  {s.label}
+                </Button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+
         <button
           className={cn(
             'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
