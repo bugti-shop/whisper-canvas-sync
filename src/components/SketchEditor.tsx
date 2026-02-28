@@ -833,26 +833,92 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
       break;
     }
     case 'marker': {
-      ctx.strokeStyle = hexToRgba(stroke.color, 0.4);
-      ctx.lineWidth = stroke.width * 3; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(start.x, start.y);
+      // Realistic chisel-tip marker: flat edge with slight texture
+      const markerWidth = stroke.width * 3;
+      ctx.lineCap = 'square';
+      ctx.lineJoin = 'miter';
+      // Base layer - semi-transparent, flat chisel look
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.5);
+      ctx.lineWidth = markerWidth;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
       for (let i = 1; i < stroke.points.length - 1; i++) {
         const curr = stroke.points[i]; const next = stroke.points[i + 1];
-        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
       }
-      ctx.lineTo(end.x, end.y); ctx.stroke(); break;
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Edge darkening layer for ink-pooling effect
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.15);
+      ctx.lineWidth = markerWidth * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
+      }
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Center highlight for glossy feel
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.25);
+      ctx.lineWidth = markerWidth * 0.4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
+      }
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      break;
     }
     case 'highlighter': {
+      // Realistic highlighter: flat rectangular tip, transparent, multiply blend
+      const hlWidth = stroke.width * 4.5;
       ctx.globalCompositeOperation = 'multiply';
-      ctx.strokeStyle = hexToRgba(stroke.color, 0.25);
-      ctx.lineWidth = stroke.width * 4; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(start.x, start.y);
+      ctx.lineCap = 'butt';
+      ctx.lineJoin = 'bevel';
+      // Main highlight pass - flat transparent band
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.3);
+      ctx.lineWidth = hlWidth;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
       for (let i = 1; i < stroke.points.length - 1; i++) {
         const curr = stroke.points[i]; const next = stroke.points[i + 1];
-        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
       }
       if (stroke.points.length >= 2) ctx.lineTo(end.x, end.y);
-      ctx.stroke(); break;
+      ctx.stroke();
+      // Edge darkening for ink build-up at borders
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.12);
+      ctx.lineWidth = hlWidth * 1.05;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
+      }
+      if (stroke.points.length >= 2) ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Subtle center saturation boost
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.1);
+      ctx.lineWidth = hlWidth * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
+        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
+      }
+      if (stroke.points.length >= 2) ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      break;
     }
     case 'calligraphy': {
       ctx.strokeStyle = stroke.color;
@@ -1488,24 +1554,71 @@ const PenPreviewCanvas = memo(({ penType, isActive, currentColor }: { penType: D
         break;
       }
       case 'marker': {
+        // Live preview: chisel-tip marker with layered opacity
+        ctx.lineJoin = 'miter';
+        ctx.lineCap = 'square';
+        const liveMarkerW = 4;
+        // Base layer
         ctx.strokeStyle = c;
-        ctx.lineJoin = 'round';
-        ctx.lineCap = 'round';
-        ctx.globalAlpha = 0.75;
-        ctx.lineWidth = 4;
+        ctx.globalAlpha = 0.5;
+        ctx.lineWidth = liveMarkerW;
         ctx.beginPath();
-        points.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+        points.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else {
+            const prev = points[i - 1];
+            const mx = (prev.x + pt.x) / 2, my = (prev.y + pt.y) / 2;
+            ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+          }
+        });
+        ctx.stroke();
+        // Center highlight
+        ctx.globalAlpha = 0.25;
+        ctx.lineWidth = liveMarkerW * 0.4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        points.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else {
+            const prev = points[i - 1];
+            const mx = (prev.x + pt.x) / 2, my = (prev.y + pt.y) / 2;
+            ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+          }
+        });
         ctx.stroke();
         break;
       }
       case 'highlighter': {
-        ctx.strokeStyle = c;
-        ctx.lineJoin = 'round';
+        // Live preview: flat transparent band with multiply blend
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.lineJoin = 'bevel';
         ctx.lineCap = 'butt';
+        const liveHlW = 8;
+        ctx.strokeStyle = c;
         ctx.globalAlpha = 0.3;
-        ctx.lineWidth = 8;
+        ctx.lineWidth = liveHlW;
         ctx.beginPath();
-        points.forEach((pt, i) => i === 0 ? ctx.moveTo(pt.x, pt.y) : ctx.lineTo(pt.x, pt.y));
+        points.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else {
+            const prev = points[i - 1];
+            const mx = (prev.x + pt.x) / 2, my = (prev.y + pt.y) / 2;
+            ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+          }
+        });
+        ctx.stroke();
+        // Subtle center boost
+        ctx.globalAlpha = 0.1;
+        ctx.lineWidth = liveHlW * 0.5;
+        ctx.beginPath();
+        points.forEach((pt, i) => {
+          if (i === 0) ctx.moveTo(pt.x, pt.y);
+          else {
+            const prev = points[i - 1];
+            const mx = (prev.x + pt.x) / 2, my = (prev.y + pt.y) / 2;
+            ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
+          }
+        });
         ctx.stroke();
         break;
       }
