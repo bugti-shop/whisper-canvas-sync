@@ -110,7 +110,7 @@ const PALM_REJECTION_RADIUS = 20;
 const MAX_LAYERS = 3;
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 8;
-const DOUBLE_TAP_DELAY = 300;
+const DOUBLE_TAP_DELAY = 400;
 const MAX_RECENT_COLORS = 8;
 const HANDLE_SIZE = 8;
 const HIT_TOLERANCE = 12;
@@ -1885,12 +1885,15 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         return;
       }
 
-      const now = Date.now();
-      if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-        zoomRef.current = 1; panRef.current = { x: 0, y: 0 }; setZoomDisplay(100); redrawAll();
-        lastTapRef.current = 0; return;
+      // Only do global double-tap-to-reset-zoom for draw/eraser tools, not when sticky/select might handle double-tap
+      if (tool !== 'sticky' && tool !== 'select') {
+        const now = Date.now();
+        if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
+          zoomRef.current = 1; panRef.current = { x: 0, y: 0 }; setZoomDisplay(100); redrawAll();
+          lastTapRef.current = 0; return;
+        }
+        lastTapRef.current = now;
       }
-      lastTapRef.current = now;
     }
 
     if (e.pointerType === 'touch' && isDrawingRef.current) return;
