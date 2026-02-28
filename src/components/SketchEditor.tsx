@@ -797,21 +797,36 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
         ctx.lineWidth = stroke.width;
         ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
       } else {
-        // Draw pressure-sensitive segments with smooth quadratic curves
-        for (let i = 1; i < stroke.points.length; i++) {
-          const prev = stroke.points[i - 1]; const curr = stroke.points[i];
-          const pressure = Math.max(0.3, (prev.pressure + curr.pressure) / 2);
-          ctx.lineWidth = stroke.width * pressure;
+        // Draw as a single continuous path using average pressure for smooth lines
+        // Group points into segments of similar pressure to minimize beginPath calls
+        let segStart = 0;
+        const pressureThreshold = 0.15;
+        
+        const drawSegment = (fromIdx: number, toIdx: number) => {
+          if (toIdx - fromIdx < 1) return;
+          let avgPressure = 0;
+          for (let j = fromIdx; j <= toIdx; j++) avgPressure += stroke.points[j].pressure;
+          avgPressure = Math.max(0.3, avgPressure / (toIdx - fromIdx + 1));
+          ctx.lineWidth = stroke.width * avgPressure;
           ctx.beginPath();
-          if (i === 1) {
-            ctx.moveTo(prev.x, prev.y);
-            ctx.lineTo(curr.x, curr.y);
-          } else {
-            const pprev = stroke.points[i - 2];
-            ctx.moveTo((pprev.x + prev.x) / 2, (pprev.y + prev.y) / 2);
-            ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
+          // Extend slightly before start for overlap
+          const p0 = stroke.points[fromIdx];
+          ctx.moveTo(p0.x, p0.y);
+          for (let j = fromIdx + 1; j < toIdx; j++) {
+            const curr = stroke.points[j]; const next = stroke.points[j + 1];
+            ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
           }
+          ctx.lineTo(stroke.points[toIdx].x, stroke.points[toIdx].y);
           ctx.stroke();
+        };
+
+        for (let i = 1; i < stroke.points.length; i++) {
+          const pDiff = Math.abs(stroke.points[i].pressure - stroke.points[segStart].pressure);
+          if (pDiff > pressureThreshold || i === stroke.points.length - 1) {
+            // Overlap by 1 point to eliminate gaps
+            drawSegment(segStart, i);
+            segStart = Math.max(0, i - 1);
+          }
         }
       }
       break;
@@ -840,19 +855,42 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     }
     case 'calligraphy': {
       ctx.strokeStyle = stroke.color;
+      // Build continuous paths for main and secondary strokes to avoid gaps
+      const mainPath: {x: number, y: number}[] = [];
+      const subPath: {x: number, y: number}[] = [];
+      let avgWidth = stroke.width * 1.5;
+      let totalSpeed = 0;
       for (let i = 1; i < stroke.points.length; i++) {
         const prev = stroke.points[i - 1]; const curr = stroke.points[i];
         const dx = curr.x - prev.x; const dy = curr.y - prev.y;
         const dist = Math.sqrt(dx * dx + dy * dy);
         const dt = (curr.timestamp && prev.timestamp) ? Math.max(1, curr.timestamp - prev.timestamp) : 16;
         const speedFactor = Math.max(0.2, Math.min(1, 1 - (dist / dt) * 0.15));
-        ctx.lineWidth = stroke.width * 1.5 * Math.max(0.3, curr.pressure) * speedFactor;
+        totalSpeed += speedFactor;
         const angle = Math.atan2(dy, dx);
         const nibOffset = Math.abs(Math.sin(angle)) * stroke.width * 0.3;
-        ctx.beginPath(); ctx.moveTo(prev.x, prev.y - nibOffset); ctx.lineTo(curr.x, curr.y - nibOffset); ctx.stroke();
-        ctx.lineWidth *= 0.3;
-        ctx.beginPath(); ctx.moveTo(prev.x, prev.y + nibOffset); ctx.lineTo(curr.x, curr.y + nibOffset); ctx.stroke();
+        mainPath.push({x: curr.x, y: curr.y - nibOffset});
+        subPath.push({x: curr.x, y: curr.y + nibOffset});
       }
+      avgWidth *= Math.max(0.3, stroke.points[0].pressure) * (totalSpeed / Math.max(1, stroke.points.length - 1));
+      // Main stroke
+      ctx.lineWidth = avgWidth;
+      ctx.beginPath(); ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 0; i < mainPath.length - 1; i++) {
+        const curr = mainPath[i]; const next = mainPath[i + 1];
+        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      }
+      if (mainPath.length > 0) ctx.lineTo(mainPath[mainPath.length - 1].x, mainPath[mainPath.length - 1].y);
+      ctx.stroke();
+      // Sub stroke
+      ctx.lineWidth = avgWidth * 0.3;
+      ctx.beginPath(); ctx.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let i = 0; i < subPath.length - 1; i++) {
+        const curr = subPath[i]; const next = subPath[i + 1];
+        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      }
+      if (subPath.length > 0) ctx.lineTo(subPath[subPath.length - 1].x, subPath[subPath.length - 1].y);
+      ctx.stroke();
       break;
     }
     case 'spray': {
@@ -872,23 +910,34 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     }
     case 'fountain': {
       ctx.strokeStyle = stroke.color;
-      for (let i = 1; i < stroke.points.length; i++) {
-        const prev = stroke.points[i - 1]; const curr = stroke.points[i];
-        const pressure = Math.max(0.15, (prev.pressure + curr.pressure) / 2);
-        const dy = curr.y - prev.y;
-        const downFactor = Math.max(0.3, Math.min(1.5, 0.5 + (dy > 0 ? dy * 0.05 : dy * 0.02)));
-        ctx.lineWidth = stroke.width * 1.8 * pressure * downFactor;
-        ctx.beginPath();
-        if (i >= 2) {
-          const pprev = stroke.points[i - 2];
-          ctx.moveTo((pprev.x + prev.x) / 2, (pprev.y + prev.y) / 2);
-          ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
-        } else {
-          ctx.moveTo(prev.x, prev.y);
-          ctx.quadraticCurveTo((prev.x + curr.x) / 2, (prev.y + curr.y) / 2, curr.x, curr.y);
+      // Use overlapping segments to eliminate gaps
+      const segSize = 8; // points per segment
+      for (let seg = 0; seg < stroke.points.length - 1; seg += Math.max(1, segSize - 2)) {
+        const segEnd = Math.min(seg + segSize, stroke.points.length - 1);
+        if (segEnd <= seg) break;
+        // Calculate average pressure/direction for this segment
+        let avgPressure = 0, avgDownFactor = 0;
+        for (let i = seg; i <= segEnd; i++) {
+          avgPressure += stroke.points[i].pressure;
+          if (i > 0) {
+            const dy = stroke.points[i].y - stroke.points[i - 1].y;
+            avgDownFactor += Math.max(0.3, Math.min(1.5, 0.5 + (dy > 0 ? dy * 0.05 : dy * 0.02)));
+          } else avgDownFactor += 0.7;
         }
+        const count = segEnd - seg + 1;
+        avgPressure = Math.max(0.15, avgPressure / count);
+        avgDownFactor = avgDownFactor / count;
+        ctx.lineWidth = stroke.width * 1.8 * avgPressure * avgDownFactor;
+        ctx.beginPath();
+        ctx.moveTo(stroke.points[seg].x, stroke.points[seg].y);
+        for (let i = seg + 1; i < segEnd; i++) {
+          const curr = stroke.points[i]; const next = stroke.points[i + 1];
+          ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+        }
+        ctx.lineTo(stroke.points[segEnd].x, stroke.points[segEnd].y);
         ctx.stroke();
       }
+      // Ink dots at endpoints
       ctx.globalAlpha = 0.35;
       ctx.beginPath(); ctx.arc(start.x, start.y, stroke.width * 0.5, 0, Math.PI * 2); ctx.fillStyle = stroke.color; ctx.fill();
       ctx.beginPath(); ctx.arc(end.x, end.y, stroke.width * 0.35, 0, Math.PI * 2); ctx.fill();
