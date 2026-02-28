@@ -12,6 +12,7 @@ import {
   Download, Share2, FileText, FileImage, FileCode,
   Type, Bold, Italic, Triangle, Star, Diamond, Hexagon, Navigation,
   Droplets, CircleDot, PaintbrushVertical, PenLine, StickyNote, ImagePlus,
+  Heart, Cloud, MessageSquare, Pentagon, Moon, Cylinder,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Share } from '@capacitor/share';
@@ -20,7 +21,7 @@ import { jsPDF } from 'jspdf';
 // --- Types ---
 
 type DrawToolType = 'pencil' | 'pen' | 'marker' | 'highlighter' | 'calligraphy' | 'spray' | 'fountain' | 'crayon' | 'watercolor' | 'dotpen';
-type ShapeToolType = 'line' | 'rect' | 'circle' | 'arrow' | 'triangle' | 'star' | 'diamond' | 'polygon';
+type ShapeToolType = 'line' | 'rect' | 'circle' | 'arrow' | 'triangle' | 'star' | 'diamond' | 'polygon' | 'pentagon' | 'heart' | 'moon' | 'cloud' | 'speechBubble' | 'cylinder' | 'trapezoid' | 'cone';
 type ToolType = DrawToolType | ShapeToolType | 'eraser' | 'select' | 'text' | 'sticky' | 'image';
 type BackgroundType = 'plain' | 'grid-sm' | 'grid-lg' | 'dotted' | 'ruled' | 'isometric' | 'dark';
 
@@ -132,6 +133,14 @@ const SHAPE_TOOLS: { id: ShapeToolType; icon: typeof Pen; label: string }[] = [
   { id: 'star', icon: Star, label: 'Star' },
   { id: 'diamond', icon: Diamond, label: 'Diamond' },
   { id: 'polygon', icon: Hexagon, label: 'Hexagon' },
+  { id: 'pentagon', icon: Pentagon, label: 'Pentagon' },
+  { id: 'heart', icon: Heart, label: 'Heart' },
+  { id: 'moon', icon: Moon, label: 'Moon' },
+  { id: 'cloud', icon: Cloud, label: 'Cloud' },
+  { id: 'speechBubble', icon: MessageSquare, label: 'Speech Bubble' },
+  { id: 'cylinder', icon: Cylinder, label: 'Cylinder' },
+  { id: 'trapezoid', icon: Navigation, label: 'Trapezoid' },
+  { id: 'cone', icon: Triangle, label: 'Cone' },
 ];
 
 const DRAW_TOOLS: { id: DrawToolType; icon: typeof Pen; label: string }[] = [
@@ -172,7 +181,7 @@ const STICKY_COLORS = [
 ];
 
 const isShapeTool = (t: ToolType): t is ShapeToolType =>
-  t === 'line' || t === 'rect' || t === 'circle' || t === 'arrow' || t === 'triangle' || t === 'star' || t === 'diamond' || t === 'polygon';
+  ['line','rect','circle','arrow','triangle','star','diamond','polygon','pentagon','heart','moon','cloud','speechBubble','cylinder','trapezoid','cone'].includes(t);
 
 const TEXT_FONTS = [
   { id: 'sans-serif', label: 'Sans Serif' },
@@ -622,6 +631,133 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
         if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
         ctx.stroke(); break;
       }
+      case 'pentagon': {
+        const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+        const r = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y)) / 2;
+        ctx.beginPath();
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * 2 * Math.PI / 5) - Math.PI / 2;
+          const px = cx + r * Math.cos(angle), py = cy + r * Math.sin(angle);
+          i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
+        ctx.stroke(); break;
+      }
+      case 'heart': {
+        const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+        const w = Math.abs(end.x - start.x) / 2, h = Math.abs(end.y - start.y) / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy + h * 0.9);
+        ctx.bezierCurveTo(cx - w * 0.1, cy + h * 0.6, cx - w, cy + h * 0.2, cx - w, cy - h * 0.2);
+        ctx.bezierCurveTo(cx - w, cy - h * 0.8, cx - w * 0.4, cy - h, cx, cy - h * 0.4);
+        ctx.bezierCurveTo(cx + w * 0.4, cy - h, cx + w, cy - h * 0.8, cx + w, cy - h * 0.2);
+        ctx.bezierCurveTo(cx + w, cy + h * 0.2, cx + w * 0.1, cy + h * 0.6, cx, cy + h * 0.9);
+        ctx.closePath();
+        if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
+        ctx.stroke(); break;
+      }
+      case 'moon': {
+        const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+        const r = Math.max(Math.abs(end.x - start.x), Math.abs(end.y - start.y)) / 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
+        ctx.stroke();
+        // Inner cutout
+        ctx.save();
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.beginPath();
+        ctx.arc(cx + r * 0.4, cy - r * 0.1, r * 0.75, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        // Re-stroke outline
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, -0.55, Math.PI + 0.55);
+        ctx.stroke();
+        break;
+      }
+      case 'cloud': {
+        const cx = (start.x + end.x) / 2, cy = (start.y + end.y) / 2;
+        const w = Math.abs(end.x - start.x) / 2, h = Math.abs(end.y - start.y) / 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - w * 0.6, cy + h * 0.3);
+        ctx.bezierCurveTo(cx - w, cy + h * 0.3, cx - w, cy - h * 0.2, cx - w * 0.6, cy - h * 0.3);
+        ctx.bezierCurveTo(cx - w * 0.6, cy - h * 0.8, cx - w * 0.1, cy - h, cx + w * 0.1, cy - h * 0.7);
+        ctx.bezierCurveTo(cx + w * 0.3, cy - h, cx + w * 0.8, cy - h * 0.8, cx + w * 0.7, cy - h * 0.3);
+        ctx.bezierCurveTo(cx + w, cy - h * 0.2, cx + w, cy + h * 0.3, cx + w * 0.6, cy + h * 0.3);
+        ctx.closePath();
+        if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
+        ctx.stroke(); break;
+      }
+      case 'speechBubble': {
+        const x = Math.min(start.x, end.x), y = Math.min(start.y, end.y);
+        const w = Math.abs(end.x - start.x), h = Math.abs(end.y - start.y);
+        const r2 = Math.min(w, h) * 0.15;
+        const tailH = h * 0.2;
+        const bodyH = h - tailH;
+        ctx.beginPath();
+        ctx.moveTo(x + r2, y); ctx.lineTo(x + w - r2, y);
+        ctx.arcTo(x + w, y, x + w, y + r2, r2);
+        ctx.lineTo(x + w, y + bodyH - r2);
+        ctx.arcTo(x + w, y + bodyH, x + w - r2, y + bodyH, r2);
+        ctx.lineTo(x + w * 0.35, y + bodyH);
+        ctx.lineTo(x + w * 0.15, y + h);
+        ctx.lineTo(x + w * 0.25, y + bodyH);
+        ctx.lineTo(x + r2, y + bodyH);
+        ctx.arcTo(x, y + bodyH, x, y + bodyH - r2, r2);
+        ctx.lineTo(x, y + r2);
+        ctx.arcTo(x, y, x + r2, y, r2);
+        ctx.closePath();
+        if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
+        ctx.stroke(); break;
+      }
+      case 'cylinder': {
+        const x = Math.min(start.x, end.x), y = Math.min(start.y, end.y);
+        const w = Math.abs(end.x - start.x), h = Math.abs(end.y - start.y);
+        const ellipseH = h * 0.15;
+        const cx = x + w / 2;
+        if (hasFill) {
+          ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!);
+          ctx.beginPath(); ctx.ellipse(cx, y + ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.fillRect(x, y + ellipseH, w, h - ellipseH * 2);
+          ctx.beginPath(); ctx.ellipse(cx, y + h - ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2); ctx.fill();
+        }
+        // Side lines
+        ctx.beginPath(); ctx.moveTo(x, y + ellipseH); ctx.lineTo(x, y + h - ellipseH); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x + w, y + ellipseH); ctx.lineTo(x + w, y + h - ellipseH); ctx.stroke();
+        // Top ellipse
+        ctx.beginPath(); ctx.ellipse(cx, y + ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2); ctx.stroke();
+        // Bottom ellipse
+        ctx.beginPath(); ctx.ellipse(cx, y + h - ellipseH, w / 2, ellipseH, 0, 0, Math.PI * 2); ctx.stroke();
+        break;
+      }
+      case 'trapezoid': {
+        const x = Math.min(start.x, end.x), y = Math.min(start.y, end.y);
+        const w = Math.abs(end.x - start.x), h = Math.abs(end.y - start.y);
+        const inset = w * 0.2;
+        ctx.beginPath();
+        ctx.moveTo(x + inset, y); ctx.lineTo(x + w - inset, y);
+        ctx.lineTo(x + w, y + h); ctx.lineTo(x, y + h);
+        ctx.closePath();
+        if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
+        ctx.stroke(); break;
+      }
+      case 'cone': {
+        const cx = (start.x + end.x) / 2;
+        const y = Math.min(start.y, end.y), h = Math.abs(end.y - start.y);
+        const w = Math.abs(end.x - start.x) / 2;
+        const ellipseH = h * 0.12;
+        ctx.beginPath();
+        ctx.moveTo(cx, y); ctx.lineTo(cx + w, y + h - ellipseH); 
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx, y); ctx.lineTo(cx - w, y + h - ellipseH);
+        ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(cx, y + h - ellipseH, w, ellipseH, 0, 0, Math.PI * 2);
+        if (hasFill) { ctx.fillStyle = hexToRgba(stroke.fillColor!, stroke.fillOpacity!); ctx.fill(); }
+        ctx.stroke(); break;
+      }
     }
     ctx.restore(); return;
   }
@@ -936,6 +1072,34 @@ const strokeToSvgPath = (stroke: Stroke): string => {
         }
         const fill = stroke.fillColor && stroke.fillOpacity ? hexToRgba(stroke.fillColor, stroke.fillOpacity) : 'none';
         return `<polygon points="${pts.join(' ')}" stroke="${stroke.color}" stroke-width="${stroke.width}" fill="${fill}" stroke-linejoin="round"/>`;
+      }
+      case 'pentagon': {
+        const cx = (s.x + e.x) / 2, cy = (s.y + e.y) / 2;
+        const r = Math.max(Math.abs(e.x - s.x), Math.abs(e.y - s.y)) / 2;
+        const pts: string[] = [];
+        for (let i = 0; i < 5; i++) {
+          const angle = (i * 2 * Math.PI / 5) - Math.PI / 2;
+          pts.push(`${cx + r * Math.cos(angle)},${cy + r * Math.sin(angle)}`);
+        }
+        const fill = stroke.fillColor && stroke.fillOpacity ? hexToRgba(stroke.fillColor, stroke.fillOpacity) : 'none';
+        return `<polygon points="${pts.join(' ')}" stroke="${stroke.color}" stroke-width="${stroke.width}" fill="${fill}" stroke-linejoin="round"/>`;
+      }
+      case 'trapezoid': {
+        const x = Math.min(s.x, e.x), y = Math.min(s.y, e.y);
+        const w = Math.abs(e.x - s.x), h = Math.abs(e.y - s.y);
+        const inset = w * 0.2;
+        const fill = stroke.fillColor && stroke.fillOpacity ? hexToRgba(stroke.fillColor, stroke.fillOpacity) : 'none';
+        return `<polygon points="${x+inset},${y} ${x+w-inset},${y} ${x+w},${y+h} ${x},${y+h}" stroke="${stroke.color}" stroke-width="${stroke.width}" fill="${fill}" stroke-linejoin="round"/>`;
+      }
+      case 'heart':
+      case 'moon':
+      case 'cloud':
+      case 'speechBubble':
+      case 'cylinder':
+      case 'cone': {
+        // Complex shapes: fallback to path-based SVG
+        const fill = stroke.fillColor && stroke.fillOpacity ? hexToRgba(stroke.fillColor, stroke.fillOpacity) : 'none';
+        return `<rect x="${Math.min(s.x,e.x)}" y="${Math.min(s.y,e.y)}" width="${Math.abs(e.x-s.x)}" height="${Math.abs(e.y-s.y)}" stroke="${stroke.color}" stroke-width="${stroke.width}" fill="${fill}" rx="4" opacity="0.8"/>`;
       }
     }
   }
@@ -3347,7 +3511,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2.5 bg-card/95 backdrop-blur-md border border-border/50 shadow-xl rounded-2xl" align="start" side="top">
-            <div className="flex gap-1.5 mb-2.5">
+            <div className="grid grid-cols-6 gap-1.5 mb-2.5" style={{ width: 270 }}>
               {SHAPE_TOOLS.map((s) => (
                 <button key={s.id}
                   className={cn(
