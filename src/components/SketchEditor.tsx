@@ -105,7 +105,7 @@ type HandleType = 'tl' | 'tr' | 'bl' | 'br' | 'rotate' | 'body';
 // --- Constants ---
 
 const MAX_UNDO = 50;
-const MIN_POINT_DISTANCE = 3;
+const MIN_POINT_DISTANCE = 1.5;
 const PALM_REJECTION_RADIUS = 20;
 const MAX_LAYERS = 3;
 const MIN_ZOOM = 0.25;
@@ -631,37 +631,58 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
   switch (stroke.tool) {
     case 'pencil': {
       ctx.strokeStyle = stroke.color; ctx.globalAlpha = 0.85;
-      for (let i = 1; i < stroke.points.length; i++) {
-        const prev = stroke.points[i - 1]; const curr = stroke.points[i];
-        ctx.lineWidth = stroke.width * Math.max(0.2, curr.pressure) * 0.6;
-        const jx = Math.sin(i * 7.3 + curr.x * 0.1) * 0.8; const jy = Math.cos(i * 5.1 + curr.y * 0.1) * 0.8;
-        ctx.beginPath(); ctx.moveTo(prev.x + jx, prev.y + jy); ctx.lineTo(curr.x - jx, curr.y - jy); ctx.stroke();
+      // Main stroke with smooth curves
+      ctx.lineWidth = stroke.width * 0.6;
+      ctx.beginPath(); ctx.moveTo(start.x, start.y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        const pressure = Math.max(0.2, curr.pressure);
+        ctx.lineWidth = stroke.width * pressure * 0.6;
+        const jx = Math.sin(i * 7.3 + curr.x * 0.1) * 0.4; const jy = Math.cos(i * 5.1 + curr.y * 0.1) * 0.4;
+        ctx.quadraticCurveTo(curr.x + jx, curr.y + jy, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
       }
-      ctx.globalAlpha = 0.3;
-      for (let i = 1; i < stroke.points.length; i++) {
-        const prev = stroke.points[i - 1]; const curr = stroke.points[i];
-        ctx.lineWidth = stroke.width * 0.3;
-        ctx.beginPath(); ctx.moveTo(prev.x + 0.5, prev.y - 0.5); ctx.lineTo(curr.x - 0.5, curr.y + 0.5); ctx.stroke();
+      if (stroke.points.length >= 2) ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+      // Subtle texture overlay
+      ctx.globalAlpha = 0.2;
+      ctx.lineWidth = stroke.width * 0.25;
+      ctx.beginPath(); ctx.moveTo(start.x + 0.3, start.y - 0.3);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        ctx.quadraticCurveTo(curr.x - 0.3, curr.y + 0.3, (curr.x + next.x) / 2 + 0.2, (curr.y + next.y) / 2 - 0.2);
       }
+      if (stroke.points.length >= 2) ctx.lineTo(end.x - 0.3, end.y + 0.3);
+      ctx.stroke();
       break;
     }
     case 'pen': {
-      ctx.strokeStyle = stroke.color; ctx.lineWidth = stroke.width;
-      ctx.beginPath(); ctx.moveTo(start.x, start.y);
-      if (stroke.points.length === 2) { ctx.lineTo(end.x, end.y); }
-      else {
-        for (let i = 1; i < stroke.points.length - 1; i++) {
-          const curr = stroke.points[i]; const next = stroke.points[i + 1];
-          ctx.lineWidth = stroke.width * Math.max(0.3, curr.pressure);
-          ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      ctx.strokeStyle = stroke.color;
+      if (stroke.points.length === 2) {
+        ctx.lineWidth = stroke.width;
+        ctx.beginPath(); ctx.moveTo(start.x, start.y); ctx.lineTo(end.x, end.y); ctx.stroke();
+      } else {
+        // Draw pressure-sensitive segments with smooth quadratic curves
+        for (let i = 1; i < stroke.points.length; i++) {
+          const prev = stroke.points[i - 1]; const curr = stroke.points[i];
+          const pressure = Math.max(0.3, (prev.pressure + curr.pressure) / 2);
+          ctx.lineWidth = stroke.width * pressure;
+          ctx.beginPath();
+          if (i === 1) {
+            ctx.moveTo(prev.x, prev.y);
+            ctx.lineTo(curr.x, curr.y);
+          } else {
+            const pprev = stroke.points[i - 2];
+            ctx.moveTo((pprev.x + prev.x) / 2, (pprev.y + prev.y) / 2);
+            ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
+          }
+          ctx.stroke();
         }
-        ctx.lineTo(end.x, end.y);
       }
-      ctx.stroke(); break;
+      break;
     }
     case 'marker': {
       ctx.strokeStyle = hexToRgba(stroke.color, 0.4);
-      ctx.lineWidth = stroke.width * 3; ctx.lineCap = 'square';
+      ctx.lineWidth = stroke.width * 3; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(start.x, start.y);
       for (let i = 1; i < stroke.points.length - 1; i++) {
         const curr = stroke.points[i]; const next = stroke.points[i + 1];
@@ -672,9 +693,13 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     case 'highlighter': {
       ctx.globalCompositeOperation = 'multiply';
       ctx.strokeStyle = hexToRgba(stroke.color, 0.25);
-      ctx.lineWidth = stroke.width * 4; ctx.lineCap = 'square';
+      ctx.lineWidth = stroke.width * 4; ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(start.x, start.y);
-      for (let i = 1; i < stroke.points.length; i++) ctx.lineTo(stroke.points[i].x, stroke.points[i].y);
+      for (let i = 1; i < stroke.points.length - 1; i++) {
+        const curr = stroke.points[i]; const next = stroke.points[i + 1];
+        ctx.quadraticCurveTo(curr.x, curr.y, (curr.x + next.x) / 2, (curr.y + next.y) / 2);
+      }
+      if (stroke.points.length >= 2) ctx.lineTo(end.x, end.y);
       ctx.stroke(); break;
     }
     case 'calligraphy': {
@@ -711,20 +736,26 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke) => {
     }
     case 'fountain': {
       ctx.strokeStyle = stroke.color;
-      ctx.beginPath(); ctx.moveTo(start.x, start.y);
       for (let i = 1; i < stroke.points.length; i++) {
         const prev = stroke.points[i - 1]; const curr = stroke.points[i];
-        const pressure = Math.max(0.15, curr.pressure);
+        const pressure = Math.max(0.15, (prev.pressure + curr.pressure) / 2);
         const dy = curr.y - prev.y;
         const downFactor = Math.max(0.3, Math.min(1.5, 0.5 + (dy > 0 ? dy * 0.05 : dy * 0.02)));
         ctx.lineWidth = stroke.width * 1.8 * pressure * downFactor;
-        ctx.beginPath(); ctx.moveTo(prev.x, prev.y);
-        ctx.quadraticCurveTo((prev.x + curr.x) / 2, (prev.y + curr.y) / 2, curr.x, curr.y);
+        ctx.beginPath();
+        if (i >= 2) {
+          const pprev = stroke.points[i - 2];
+          ctx.moveTo((pprev.x + prev.x) / 2, (pprev.y + prev.y) / 2);
+          ctx.quadraticCurveTo(prev.x, prev.y, (prev.x + curr.x) / 2, (prev.y + curr.y) / 2);
+        } else {
+          ctx.moveTo(prev.x, prev.y);
+          ctx.quadraticCurveTo((prev.x + curr.x) / 2, (prev.y + curr.y) / 2, curr.x, curr.y);
+        }
         ctx.stroke();
       }
-      ctx.globalAlpha = 0.4;
-      ctx.beginPath(); ctx.arc(start.x, start.y, stroke.width * 0.6, 0, Math.PI * 2); ctx.fillStyle = stroke.color; ctx.fill();
-      ctx.beginPath(); ctx.arc(end.x, end.y, stroke.width * 0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath(); ctx.arc(start.x, start.y, stroke.width * 0.5, 0, Math.PI * 2); ctx.fillStyle = stroke.color; ctx.fill();
+      ctx.beginPath(); ctx.arc(end.x, end.y, stroke.width * 0.35, 0, Math.PI * 2); ctx.fill();
       break;
     }
     case 'crayon': {
@@ -1585,6 +1616,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     const { w, h } = canvasSizeRef.current;
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     ctx.clearRect(0, 0, w, h);
 
     const zoom = zoomRef.current;
