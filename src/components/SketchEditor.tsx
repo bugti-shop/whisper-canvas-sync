@@ -396,9 +396,8 @@ const drawBackground = (
     }
     case 'ruled': {
       const lineHeight = 28;
-      ctx.strokeStyle = `hsl(0 70% 55% / ${gOpacity})`; ctx.lineWidth = 0.5;
-      ctx.beginPath(); ctx.moveTo(60, y0); ctx.lineTo(60, y1); ctx.stroke();
-      ctx.strokeStyle = lineColor;
+      ctx.strokeStyle = `${gColor}${Math.round(Math.min(1, gOpacity + 0.15) * 255).toString(16).padStart(2, '0')}`;
+      ctx.lineWidth = 0.7;
       const startY = gridStart(y0, lineHeight);
       for (let y = startY; y <= y1; y += lineHeight) { ctx.beginPath(); ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke(); }
       break;
