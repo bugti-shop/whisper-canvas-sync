@@ -2921,6 +2921,23 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             </Button>
           </div>
         )}
+        {/* Selected sticky note floating actions */}
+        {selectedStickyId != null && (
+          <div className="absolute top-2 left-2 bg-card/95 backdrop-blur-sm border border-border rounded-lg px-1 py-1 flex items-center gap-0.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 text-destructive"
+              onClick={() => {
+                handleDeleteStickyNote(selectedStickyId);
+                setSelectedStickyId(null);
+              }}
+              title="Delete sticky note"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
         {/* Inline text input overlay */}
         {editingText && (
           <div
