@@ -3832,56 +3832,10 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             />
           </>
         )}
-        {/* Minimap navigator */}
-        <MiniMap
-          layersRef={layersRef}
-          zoomRef={zoomRef}
-          panRef={panRef}
-          canvasSizeRef={canvasSizeRef}
-          zoomDisplay={zoomDisplay}
-          onPanChange={(newPan) => {
-            panRef.current = newPan;
-            setZoomDisplay(Math.round(zoomRef.current * 100));
-            redrawAll();
-          }}
-          onResetZoom={handleResetZoom}
-        />
         {/* Eyedropper mode indicator */}
         {eyedropperActive && (
           <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-lg px-2 py-1 text-[10px] flex items-center gap-1">
             <Pipette className="h-3 w-3" />Tap to pick color
-          </div>
-        )}
-        {/* Pressure sensitivity indicator */}
-        {showPressure && !isShapeTool(tool) && tool !== 'eraser' && tool !== 'select' && tool !== 'text' && tool !== 'sticky' && tool !== 'image' && (
-          <div className="absolute top-2 right-14 bg-card/90 backdrop-blur-sm border border-border/50 rounded-xl px-2.5 py-1.5 flex items-center gap-2 pointer-events-none transition-opacity duration-200" style={{ opacity: showPressure ? 1 : 0 }}>
-            <div className="flex flex-col items-center gap-0.5">
-              <span className="text-[8px] text-muted-foreground font-medium uppercase tracking-wider">Pressure</span>
-              <span className="text-xs font-bold text-foreground tabular-nums">{Math.round(pressureValue * 100)}%</span>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full rounded-full transition-all duration-75"
-                  style={{ 
-                    width: `${Math.round(pressureValue * 100)}%`,
-                    backgroundColor: pressureValue < 0.3 ? 'hsl(var(--muted-foreground))' : pressureValue < 0.7 ? 'hsl(var(--primary))' : 'hsl(var(--destructive))',
-                  }} 
-                />
-              </div>
-              <div className="flex justify-between w-16">
-                <span className="text-[6px] text-muted-foreground">Light</span>
-                <span className="text-[6px] text-muted-foreground">Heavy</span>
-              </div>
-            </div>
-            <div 
-              className="w-3 h-3 rounded-full border border-border/50 transition-all duration-75"
-              style={{ 
-                backgroundColor: color,
-                transform: `scale(${0.5 + pressureValue * 0.8})`,
-                opacity: 0.4 + pressureValue * 0.6,
-              }}
-            />
           </div>
         )}
         {/* Selection floating actions */}
@@ -4086,8 +4040,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           className={cn(
             'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
             tool === 'select'
-              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4),inset_0_1px_1px_hsl(var(--primary-foreground)/0.1)] scale-105'
-              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+              ? 'bg-primary/15 text-primary scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
           )}
           onClick={() => { setTool('select'); setEyedropperActive(false); }}
         >
@@ -4101,8 +4055,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
               className={cn(
                 'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
                 tool === 'text'
-                  ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4),inset_0_1px_1px_hsl(var(--primary-foreground)/0.1)] scale-105'
-                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+                  ? 'bg-primary/15 text-primary scale-105'
+                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
               )}
               onClick={() => { setTool('text'); setEyedropperActive(false); }}
             >
@@ -4152,8 +4106,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
               className={cn(
                 'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
                 tool === 'sticky'
-                  ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4),inset_0_1px_1px_hsl(var(--primary-foreground)/0.1)] scale-105'
-                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+                  ? 'bg-primary/15 text-primary scale-105'
+                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
               )}
               onClick={() => { setTool('sticky'); setEyedropperActive(false); }}
             >
@@ -4181,7 +4135,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         <button
           className={cn(
             'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
-            'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+            'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
           )}
           onClick={() => imageInputRef.current?.click()}
         >
@@ -4218,8 +4172,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
               className={cn(
                 'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
                 activeDrawTool
-                  ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4),inset_0_1px_1px_hsl(var(--primary-foreground)/0.1)] scale-105'
-                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+                  ? 'bg-primary/15 text-primary scale-105'
+                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
               )}
             >
               {activeDrawTool ? <activeDrawTool.icon className="h-5 w-5" strokeWidth={2.5} /> : <Pen className="h-5 w-5" strokeWidth={1.8} />}
@@ -4232,7 +4186,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
                   className={cn(
                     'flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-200',
                     tool === d.id
-                      ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.3)]'
+                      ? 'bg-primary/15 text-primary'
                       : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
                   )}
                   onClick={() => { setTool(d.id); setEyedropperActive(false); }}
@@ -4253,8 +4207,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           className={cn(
             'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
             tool === 'eraser'
-              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4),inset_0_1px_1px_hsl(var(--primary-foreground)/0.1)] scale-105'
-              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+              ? 'bg-primary/15 text-primary scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
           )}
           onClick={() => { setTool('eraser'); setEyedropperActive(false); }}
         >
@@ -4268,8 +4222,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
               className={cn(
                 'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
                 activeShapeTool
-                  ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4),inset_0_1px_1px_hsl(var(--primary-foreground)/0.1)] scale-105'
-                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+                  ? 'bg-primary/15 text-primary scale-105'
+                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
               )}
             >
               {activeShapeTool
@@ -4284,7 +4238,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
                   className={cn(
                     'h-10 w-10 rounded-xl flex items-center justify-center transition-all duration-200',
                     tool === s.id
-                      ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.3)] scale-105'
+                      ? 'bg-primary/15 text-primary scale-105'
                       : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
                   )}
                   onClick={() => { setTool(s.id); setEyedropperActive(false); }} title={s.label}
@@ -4328,7 +4282,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         {/* Advanced color picker */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95 relative">
+            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95 relative">
               <Palette className="h-5 w-5" strokeWidth={1.8} />
               <span className="absolute bottom-1.5 right-1.5 w-2.5 h-2.5 rounded-full border border-border shadow-sm" style={{ backgroundColor: color }} />
             </button>
@@ -4429,7 +4383,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         {/* Stroke width */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95">
+            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95">
               <Minus className="h-5 w-5" strokeWidth={strokeWidth > 8 ? 4 : 2} />
             </button>
           </PopoverTrigger>
@@ -4442,7 +4396,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         {/* Background selector */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95"><Grid3X3 className="h-5 w-5" strokeWidth={1.8} /></button>
+            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95"><Grid3X3 className="h-5 w-5" strokeWidth={1.8} /></button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2 bg-card" align="center" side="top">
             <p className="text-[10px] font-medium text-foreground mb-1.5 px-1">Background</p>
@@ -4479,7 +4433,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         {/* Layers popover */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95"><Layers className="h-5 w-5" strokeWidth={1.8} /></button>
+            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95"><Layers className="h-5 w-5" strokeWidth={1.8} /></button>
           </PopoverTrigger>
           <PopoverContent className="w-56 p-3 bg-card" align="center" side="top">
             <p className="text-xs font-medium text-foreground mb-2">Layers</p>
@@ -4517,8 +4471,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           className={cn(
             'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
             pressureOpacityEnabled
-              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
-              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+              ? 'bg-primary/15 text-primary scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
           )}
           onClick={() => setPressureOpacityEnabled(!pressureOpacityEnabled)}
           title={pressureOpacityEnabled ? 'Disable Pressure Opacity' : 'Enable Pressure Opacity'}
@@ -4533,8 +4487,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
               className={cn(
                 'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
                 symmetryMode !== 'off'
-                  ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
-                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+                  ? 'bg-primary/15 text-primary scale-105'
+                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
               )}
               title="Symmetry Mode"
             >
@@ -4569,8 +4523,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           className={cn(
             'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
             showRulers
-              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
-              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+              ? 'bg-primary/15 text-primary scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
           )}
           onClick={() => setShowRulers(!showRulers)}
           title={showRulers ? 'Hide Rulers' : 'Show Rulers'}
@@ -4583,8 +4537,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           className={cn(
             'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
             focusMode
-              ? 'bg-primary/15 text-primary shadow-[0_2px_8px_-2px_hsl(var(--primary)/0.4)] scale-105'
-              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95'
+              ? 'bg-primary/15 text-primary scale-105'
+              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
           )}
           onClick={() => setFocusMode(!focusMode)}
           title={focusMode ? 'Exit Focus Mode' : 'Focus Mode'}
@@ -4594,20 +4548,20 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
 
         <div className="flex-1" />
 
-        <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95" onClick={handleUndo}>
+        <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95" onClick={handleUndo}>
           <Undo2 className="h-5 w-5" strokeWidth={1.8} />
         </button>
-        <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95" onClick={handleRedo}>
+        <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95" onClick={handleRedo}>
           <Redo2 className="h-5 w-5" strokeWidth={1.8} />
         </button>
-        <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-destructive/70 hover:bg-destructive/10 hover:text-destructive hover:shadow-[0_2px_6px_-2px_hsl(var(--destructive)/0.2)] active:scale-95" onClick={handleClear}>
+        <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 text-destructive/70 hover:bg-destructive/10 hover:text-destructive active:scale-95" onClick={handleClear}>
           <Trash2 className="h-5 w-5" strokeWidth={1.8} />
         </button>
 
         {/* Export popover */}
         <Popover>
           <PopoverTrigger asChild>
-            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 border border-border/50 text-foreground/70 hover:bg-muted/80 hover:text-foreground hover:shadow-[0_2px_6px_-2px_hsl(var(--foreground)/0.1)] active:scale-95">
+            <button className="h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200 border border-border/50 text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95">
               <Download className="h-5 w-5" strokeWidth={1.8} />
             </button>
           </PopoverTrigger>
