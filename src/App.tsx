@@ -226,7 +226,13 @@ const AppContent = () => {
 
   // Show lock screen if locked (but not while checking)
   if (isAppLocked === true) {
-    return <AppLockScreen onUnlock={handleUnlock} />;
+    return (
+      <>
+        <Toaster />
+        <Sonner />
+        <AppLockScreen onUnlock={handleUnlock} />
+      </>
+    );
   }
 
   return (
