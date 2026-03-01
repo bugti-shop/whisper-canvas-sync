@@ -6,16 +6,14 @@ interface CanvasTriangleProps {
   onClose: () => void;
   onRulerUpdate: (edges: TriangleEdges | null) => void;
   containerRef: React.RefObject<HTMLDivElement>;
-  zoom: number;
-  pan: { x: number; y: number };
+  zoomRef: React.RefObject<number>;
+  panRef: React.RefObject<{ x: number; y: number }>;
+  zoomDisplay: number;
 }
 
 export interface TriangleEdges {
-  /** Hypotenuse edge for snapping */
   hyp: { x1: number; y1: number; x2: number; y2: number };
-  /** Bottom edge for snapping */
   base: { x1: number; y1: number; x2: number; y2: number };
-  /** Left vertical edge for snapping */
   vert: { x1: number; y1: number; x2: number; y2: number };
 }
 
@@ -45,7 +43,6 @@ export const snapToTriangle = (
   threshold: number = SNAP_DISTANCE
 ): { x: number; y: number; snapped: boolean } => {
   if (!edges) return { x: wx, y: wy, snapped: false };
-  // Try hypotenuse first, then base, then vertical
   for (const edge of [edges.hyp, edges.base, edges.vert]) {
     const r = snapToLine(wx, wy, edge.x1, edge.y1, edge.x2, edge.y2, threshold);
     if (r.snapped) return r;
@@ -53,7 +50,7 @@ export const snapToTriangle = (
   return { x: wx, y: wy, snapped: false };
 };
 
-export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, containerRef, zoom, pan }: CanvasTriangleProps) => {
+export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, containerRef, zoomRef, panRef, zoomDisplay }: CanvasTriangleProps) => {
   const [position, setPosition] = useState({ x: 120, y: 180 });
   const [rotation, setRotation] = useState(0);
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
@@ -62,10 +59,10 @@ export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, container
 
   useEffect(() => {
     if (!visible) { onRulerUpdate(null); return; }
+    const zoom = zoomRef.current;
+    const pan = panRef.current;
     const rad = (rotation * Math.PI) / 180;
     const cos = Math.cos(rad); const sin = Math.sin(rad);
-    // Three corners of the right triangle (bottom-left is the right angle)
-    // In screen coords relative to position: BL=(0, TRI_HEIGHT), BR=(TRI_BASE, TRI_HEIGHT), TL=(0, 0)
     const toWorld = (sx: number, sy: number) => {
       const rx = sx * cos - sy * sin;
       const ry = sx * sin + sy * cos;
@@ -79,7 +76,7 @@ export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, container
       base: { x1: bl.x, y1: bl.y, x2: br.x, y2: br.y },
       vert: { x1: tl.x, y1: tl.y, x2: bl.x, y2: bl.y },
     });
-  }, [visible, position, rotation, zoom, pan, onRulerUpdate]);
+  }, [visible, position, rotation, zoomDisplay, onRulerUpdate]);
 
   const handleDragStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -117,7 +114,6 @@ export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, container
 
   if (!visible) return null;
 
-  // CM ticks along bottom edge
   const baseTicks: JSX.Element[] = [];
   for (let i = 0; i <= Math.floor(TRI_BASE / 3.78); i++) {
     const x = i * 3.78;
@@ -136,7 +132,6 @@ export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, container
     }
   }
 
-  // CM ticks along left vertical edge
   const vertTicks: JSX.Element[] = [];
   for (let i = 0; i <= Math.floor(TRI_HEIGHT / 3.78); i++) {
     const y = TRI_HEIGHT - i * 3.78;
@@ -172,43 +167,32 @@ export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, container
       onPointerCancel={handleDragEnd}
     >
       <svg width={TRI_BASE} height={TRI_HEIGHT} className="absolute inset-0">
-        {/* Triangle body */}
         <polygon
           points={`0,0 0,${TRI_HEIGHT} ${TRI_BASE},${TRI_HEIGHT}`}
-          fill="rgba(255,255,255,0.35)"
-          stroke="rgba(180,175,160,0.45)"
-          strokeWidth="1"
+          fill="rgba(255,255,255,0.35)" stroke="rgba(180,175,160,0.45)" strokeWidth="1"
           style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.12))' }}
         />
-        {/* Inner highlight triangle */}
         <polygon
           points={`6,12 6,${TRI_HEIGHT - 6} ${TRI_BASE - 12},${TRI_HEIGHT - 6}`}
-          fill="none"
-          stroke="rgba(255,255,255,0.4)"
-          strokeWidth="1"
+          fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"
         />
-        {/* Right angle square indicator */}
         <rect x="1" y={TRI_HEIGHT - 15} width="14" height="14"
           fill="none" stroke="rgba(60,55,45,0.4)" strokeWidth="0.7" />
-        {/* Edge highlights */}
         <line x1="2" y1={TRI_HEIGHT} x2={TRI_BASE - 2} y2={TRI_HEIGHT}
           stroke="rgba(59,130,246,0.5)" strokeWidth="1.5" />
         <line x1="0" y1="4" x2="0" y2={TRI_HEIGHT - 2}
           stroke="rgba(59,130,246,0.4)" strokeWidth="1" />
         <line x1="2" y1="2" x2={TRI_BASE - 2} y2={TRI_HEIGHT - 2}
           stroke="rgba(59,130,246,0.35)" strokeWidth="1" />
-        {/* Angle labels */}
         <text x="24" y={TRI_HEIGHT - 8} fontSize="8" fill="rgba(60,55,45,0.6)" fontFamily="system-ui">90°</text>
         <text x={TRI_BASE - 30} y={TRI_HEIGHT - 8} fontSize="8" fill="rgba(60,55,45,0.6)" fontFamily="system-ui">45°</text>
         <text x="8" y="18" fontSize="8" fill="rgba(60,55,45,0.6)" fontFamily="system-ui">45°</text>
-        {/* cm label */}
         <text x={TRI_BASE / 2} y={TRI_HEIGHT - 20} textAnchor="middle"
           fontSize="6" fill="rgba(60,55,45,0.4)" fontFamily="system-ui">cm</text>
         {baseTicks}
         {vertTicks}
       </svg>
 
-      {/* Rotate handle */}
       <div
         className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing"
         style={{ right: '-20px', background: 'rgba(59,130,246,0.8)', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}
@@ -217,7 +201,6 @@ export const CanvasTriangle = memo(({ visible, onClose, onRulerUpdate, container
         <RotateCw className="h-3 w-3 text-white" strokeWidth={2.5} />
       </div>
 
-      {/* Close button */}
       <div
         className="absolute -top-3 w-4 h-4 rounded-full flex items-center justify-center cursor-pointer"
         style={{ right: '-8px', background: 'rgba(239,68,68,0.85)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}

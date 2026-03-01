@@ -7,8 +7,10 @@ interface CanvasRulerProps {
   /** Returns the ruler's edge line in world coords for snapping */
   onRulerUpdate: (ruler: RulerLine | null) => void;
   containerRef: React.RefObject<HTMLDivElement>;
-  zoom: number;
-  pan: { x: number; y: number };
+  zoomRef: React.RefObject<number>;
+  panRef: React.RefObject<{ x: number; y: number }>;
+  /** State value that changes on zoom/pan to trigger re-computation */
+  zoomDisplay: number;
 }
 
 export interface RulerLine {
@@ -52,7 +54,7 @@ export const snapToRuler = (
   return { x: wx, y: wy, snapped: false };
 };
 
-export const CanvasRuler = memo(({ visible, onClose, onRulerUpdate, containerRef, zoom, pan }: CanvasRulerProps) => {
+export const CanvasRuler = memo(({ visible, onClose, onRulerUpdate, containerRef, zoomRef, panRef, zoomDisplay }: CanvasRulerProps) => {
   const [position, setPosition] = useState({ x: 60, y: 200 });
   const [rotation, setRotation] = useState(0);
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
@@ -66,6 +68,8 @@ export const CanvasRuler = memo(({ visible, onClose, onRulerUpdate, containerRef
       return;
     }
     
+    const zoom = zoomRef.current;
+    const pan = panRef.current;
     const rad = (rotation * Math.PI) / 180;
     const cos = Math.cos(rad);
     const sin = Math.sin(rad);
@@ -90,7 +94,7 @@ export const CanvasRuler = memo(({ visible, onClose, onRulerUpdate, containerRef
     const ny = len > 0 ? ldx / len : 0;
     
     onRulerUpdate({ x1, y1, x2, y2, nx, ny });
-  }, [visible, position, rotation, zoom, pan, onRulerUpdate]);
+  }, [visible, position, rotation, zoomDisplay, onRulerUpdate]);
 
   const handleDragStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
