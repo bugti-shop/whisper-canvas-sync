@@ -39,6 +39,7 @@ import { Switch } from '@/components/ui/switch';
 import { format } from 'date-fns';
 
 import { saveNoteVersion } from '@/utils/noteVersionHistory';
+import { saveNoteToDBSingle } from '@/utils/noteStorage';
 import { exportNoteToMarkdown } from '@/utils/markdownExport';
 import { insertNoteLink, findBacklinks } from '@/utils/noteLinking';
 import { calculateNoteStats, formatReadingTime } from '@/utils/noteStats';
@@ -404,15 +405,8 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     toast.success(t('toast.folderCreated'));
   };
 
-  // Save version counter to prevent stale writes from racing
-  const saveVersionRef = useRef(0);
-
   const persistNoteToIndexedDB = useCallback(async (savedNote: Note) => {
-    const version = ++saveVersionRef.current;
     try {
-      const { saveNoteToDBSingle } = await import('@/utils/noteStorage');
-      // If a newer save was queued while we awaited, skip this stale one
-      if (version !== saveVersionRef.current) return;
       await saveNoteToDBSingle(savedNote);
     } catch (e) {
       console.warn('Failed to persist note to IndexedDB', e);
@@ -608,7 +602,10 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     return () => window.clearTimeout(t);
   }, [isOpen, title, content, codeContent, commitNote]);
 
-  // Save immediately if tab/app is backgrounded
+  // Save immediately if tab/app is backgrounded or page is refreshed/closed
+  const buildCurrentNoteRef = useRef(buildCurrentNote);
+  buildCurrentNoteRef.current = buildCurrentNote;
+  
   useEffect(() => {
     if (!isOpen) return;
 
@@ -618,8 +615,24 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
       }
     };
 
+    // Force-save on page refresh/close to prevent data loss
+    const onBeforeUnload = () => {
+      try {
+        const savedNote = buildCurrentNoteRef.current();
+        // Use synchronous-style save: write to IndexedDB via fire-and-forget
+        // The browser gives us a brief grace period during beforeunload
+        saveNoteToDBSingle(savedNote);
+      } catch (e) {
+        console.warn('beforeunload save failed:', e);
+      }
+    };
+
     document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
   }, [isOpen, commitNote]);
 
   // Handle hardware back button on Android - save and close editor (parent keeps correct screen)
