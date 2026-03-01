@@ -847,38 +847,12 @@ const drawStroke = (ctx: CanvasRenderingContext2D, stroke: Stroke, asClipPath?: 
       break;
     }
     case 'marker': {
-      // Realistic chisel-tip marker: flat edge with slight texture
+      // Clean chisel-tip marker: single layer, no dark overlap
       const markerWidth = stroke.width * 3;
       ctx.lineCap = 'square';
       ctx.lineJoin = 'miter';
-      // Base layer - semi-transparent, flat chisel look
-      ctx.strokeStyle = hexToRgba(stroke.color, 0.5);
+      ctx.strokeStyle = hexToRgba(stroke.color, 0.45);
       ctx.lineWidth = markerWidth;
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      for (let i = 1; i < stroke.points.length - 1; i++) {
-        const curr = stroke.points[i]; const next = stroke.points[i + 1];
-        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
-        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
-      }
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-      // Edge darkening layer for ink-pooling effect
-      ctx.strokeStyle = hexToRgba(stroke.color, 0.15);
-      ctx.lineWidth = markerWidth * 1.1;
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
-      for (let i = 1; i < stroke.points.length - 1; i++) {
-        const curr = stroke.points[i]; const next = stroke.points[i + 1];
-        const mx = (curr.x + next.x) / 2, my = (curr.y + next.y) / 2;
-        ctx.quadraticCurveTo(curr.x, curr.y, mx, my);
-      }
-      ctx.lineTo(end.x, end.y);
-      ctx.stroke();
-      // Center highlight for glossy feel
-      ctx.strokeStyle = hexToRgba(stroke.color, 0.25);
-      ctx.lineWidth = markerWidth * 0.4;
-      ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       for (let i = 1; i < stroke.points.length - 1; i++) {
@@ -1624,28 +1598,13 @@ const PenPreviewCanvas = memo(({ penType, isActive, currentColor }: { penType: D
         break;
       }
       case 'marker': {
-        // Live preview: chisel-tip marker with layered opacity
+        // Live preview: clean chisel-tip marker, single layer
         ctx.lineJoin = 'miter';
         ctx.lineCap = 'square';
         const liveMarkerW = 4;
-        // Base layer
         ctx.strokeStyle = c;
-        ctx.globalAlpha = 0.5;
+        ctx.globalAlpha = 0.45;
         ctx.lineWidth = liveMarkerW;
-        ctx.beginPath();
-        points.forEach((pt, i) => {
-          if (i === 0) ctx.moveTo(pt.x, pt.y);
-          else {
-            const prev = points[i - 1];
-            const mx = (prev.x + pt.x) / 2, my = (prev.y + pt.y) / 2;
-            ctx.quadraticCurveTo(prev.x, prev.y, mx, my);
-          }
-        });
-        ctx.stroke();
-        // Center highlight
-        ctx.globalAlpha = 0.25;
-        ctx.lineWidth = liveMarkerW * 0.4;
-        ctx.lineCap = 'round';
         ctx.beginPath();
         points.forEach((pt, i) => {
           if (i === 0) ctx.moveTo(pt.x, pt.y);
