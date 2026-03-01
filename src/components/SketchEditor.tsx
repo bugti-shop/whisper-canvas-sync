@@ -3059,7 +3059,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       height: canvasSizeRef.current.h,
       version: 2,
     };
-    onChange(JSON.stringify(data));
+    const json = JSON.stringify(data);
+    lastEmittedRef.current = json;
+    onChange(json);
   }, [onChange, activeLayerId, background]);
 
   // Keep refs in sync
@@ -3538,38 +3540,61 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
 
   // --- Init ---
 
+  // Track what we last emitted so we don't reload our own changes
+  const lastEmittedRef = useRef<string>('');
+
+  const loadInitialData = useCallback((dataStr: string) => {
+    if (!dataStr) return;
+    try {
+      const data = JSON.parse(dataStr);
+      if (data.version === 2 && data.layers) {
+        layersRef.current = data.layers.map((l: any) => ({ ...l, textAnnotations: l.textAnnotations || [], stickyNotes: l.stickyNotes || [], images: l.images || [] }));
+        // Track max text id, sticky id, image id
+        for (const l of layersRef.current) {
+          for (const ta of l.textAnnotations) {
+            if (ta.id >= nextTextIdRef.current) nextTextIdRef.current = ta.id + 1;
+          }
+          for (const sn of (l.stickyNotes || [])) {
+            if (sn.id >= nextStickyIdRef.current) nextStickyIdRef.current = sn.id + 1;
+          }
+          for (const img of (l.images || [])) {
+            if (img.id >= nextImageIdRef.current) nextImageIdRef.current = img.id + 1;
+          }
+        }
+        setActiveLayerId(data.activeLayerId ?? 1);
+        if (data.background) setBackground(data.background);
+      } else if (data.strokes) {
+        const layers = createDefaultLayers();
+        layers[0].strokes = data.strokes;
+        layersRef.current = layers;
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  // Initial mount
   useEffect(() => {
     if (initialData) {
-      try {
-        const data = JSON.parse(initialData);
-        if (data.version === 2 && data.layers) {
-          layersRef.current = data.layers.map((l: any) => ({ ...l, textAnnotations: l.textAnnotations || [], stickyNotes: l.stickyNotes || [], images: l.images || [] }));
-          // Track max text id, sticky id, image id
-          for (const l of layersRef.current) {
-            for (const ta of l.textAnnotations) {
-              if (ta.id >= nextTextIdRef.current) nextTextIdRef.current = ta.id + 1;
-            }
-            for (const sn of (l.stickyNotes || [])) {
-              if (sn.id >= nextStickyIdRef.current) nextStickyIdRef.current = sn.id + 1;
-            }
-            for (const img of (l.images || [])) {
-              if (img.id >= nextImageIdRef.current) nextImageIdRef.current = img.id + 1;
-            }
-          }
-          setActiveLayerId(data.activeLayerId ?? 1);
-          if (data.background) setBackground(data.background);
-        } else if (data.strokes) {
-          const layers = createDefaultLayers();
-          layers[0].strokes = data.strokes;
-          layersRef.current = layers;
-        }
-      } catch { /* ignore */ }
+      loadInitialData(initialData);
+      lastEmittedRef.current = initialData;
     }
     resizeCanvas();
     const handleResize = () => resizeCanvas();
     window.addEventListener('resize', handleResize);
     return () => { window.removeEventListener('resize', handleResize); cancelAnimationFrame(rafRef.current); };
   }, []);
+
+  // Re-load when initialData prop changes externally (e.g., note reopened)
+  const prevInitialDataRef = useRef(initialData);
+  useEffect(() => {
+    if (initialData && initialData !== prevInitialDataRef.current && initialData !== lastEmittedRef.current) {
+      prevInitialDataRef.current = initialData;
+      loadInitialData(initialData);
+      lastEmittedRef.current = initialData;
+      resizeCanvas();
+    } else {
+      prevInitialDataRef.current = initialData;
+    }
+  }, [initialData, loadInitialData]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
