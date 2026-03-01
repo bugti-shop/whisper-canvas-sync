@@ -3952,8 +3952,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           onClose={() => setShowPhysicalRuler(false)}
           onRulerUpdate={useCallback((r: RulerLine | null) => { physicalRulerRef.current = r; }, [])}
           containerRef={containerRef as React.RefObject<HTMLDivElement>}
-          zoom={zoomRef.current}
-          pan={panRef.current}
+          zoomRef={zoomRef}
+          panRef={panRef}
+          zoomDisplay={zoomDisplay}
         />
         {/* Protractor overlay */}
         <CanvasProtractor
@@ -3961,8 +3962,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           onClose={() => setShowProtractor(false)}
           onRulerUpdate={useCallback((r: ProtractorLine | null) => { protractorRef.current = r; }, [])}
           containerRef={containerRef as React.RefObject<HTMLDivElement>}
-          zoom={zoomRef.current}
-          pan={panRef.current}
+          zoomRef={zoomRef}
+          panRef={panRef}
+          zoomDisplay={zoomDisplay}
         />
         {/* Triangle ruler overlay */}
         <CanvasTriangle
@@ -3970,8 +3972,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           onClose={() => setShowTriangle(false)}
           onRulerUpdate={useCallback((r: TriangleEdges | null) => { triangleRef.current = r; }, [])}
           containerRef={containerRef as React.RefObject<HTMLDivElement>}
-          zoom={zoomRef.current}
-          pan={panRef.current}
+          zoomRef={zoomRef}
+          panRef={panRef}
+          zoomDisplay={zoomDisplay}
         />
         {/* Eyedropper mode indicator */}
         {eyedropperActive && (
