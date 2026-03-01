@@ -116,9 +116,23 @@ export const saveNotesToDB = async (notes: Note[]): Promise<void> => {
       const transaction = database.transaction([STORE_NAME], 'readwrite');
       const store = transaction.objectStore(STORE_NAME);
       
-      const clearRequest = store.clear();
+      // Use put() for each note instead of clear() + re-add.
+      // clear() caused a race condition where individually-saved notes
+      // (e.g. sketch content via saveNoteToDBSingle) could be overwritten
+      // by a stale bulk save that hadn't picked up the latest content yet.
+      const noteIds = new Set(notes.map(n => n.id));
       
-      clearRequest.onsuccess = () => {
+      // First, remove notes from DB that are no longer in the array
+      const getAllRequest = store.getAllKeys();
+      getAllRequest.onsuccess = () => {
+        const existingKeys = getAllRequest.result as string[];
+        existingKeys.forEach(key => {
+          if (!noteIds.has(key)) {
+            store.delete(key);
+          }
+        });
+        
+        // Then upsert all current notes
         notes.forEach(note => {
           store.put({
             ...note,
