@@ -1,5 +1,8 @@
-import { useCallback, useRef, useState, useEffect, memo } from 'react';
+import { useCallback, useRef, useState, useEffect, memo, useMemo } from 'react';
 import { X, RotateCw } from 'lucide-react';
+
+interface StrokePoint { x: number; y: number; }
+interface StrokeData { points: StrokePoint[]; }
 
 interface CanvasProtractorProps {
   visible: boolean;
@@ -9,17 +12,22 @@ interface CanvasProtractorProps {
   zoomRef: React.RefObject<number>;
   panRef: React.RefObject<{ x: number; y: number }>;
   zoomDisplay: number;
+  /** Current strokes for angle measurement */
+  strokes?: StrokeData[];
 }
 
 export interface ProtractorLine {
   x1: number; y1: number;
   x2: number; y2: number;
   nx: number; ny: number;
+  /** Center point in world coords */
+  cx: number; cy: number;
 }
 
 const PROTRACTOR_RADIUS = 120;
 const PROTRACTOR_DIAMETER = PROTRACTOR_RADIUS * 2;
 const SNAP_DISTANCE = 18;
+const ANGLE_DETECT_RADIUS = 40; // world units – how close a stroke endpoint must be to center
 
 export const snapToProtractor = (
   wx: number, wy: number,
@@ -40,15 +48,40 @@ export const snapToProtractor = (
   return { x: wx, y: wy, snapped: false };
 };
 
-export const CanvasProtractor = memo(({ visible, onClose, onRulerUpdate, containerRef, zoomRef, panRef, zoomDisplay }: CanvasProtractorProps) => {
+/** Compute angle between two direction vectors in degrees (0-180) */
+const angleBetween = (ax: number, ay: number, bx: number, by: number): number => {
+  const dot = ax * bx + ay * by;
+  const magA = Math.sqrt(ax * ax + ay * ay);
+  const magB = Math.sqrt(bx * bx + by * by);
+  if (magA === 0 || magB === 0) return 0;
+  const cosA = Math.max(-1, Math.min(1, dot / (magA * magB)));
+  return Math.acos(cosA) * (180 / Math.PI);
+};
+
+/** Get the direction vector of a stroke (from near-center end to far end) */
+const getStrokeDirection = (stroke: StrokeData, cx: number, cy: number): { dx: number; dy: number } | null => {
+  if (stroke.points.length < 2) return null;
+  const first = stroke.points[0];
+  const last = stroke.points[stroke.points.length - 1];
+  const dFirst = Math.sqrt((first.x - cx) ** 2 + (first.y - cy) ** 2);
+  const dLast = Math.sqrt((last.x - cx) ** 2 + (last.y - cy) ** 2);
+  // The closer end is the "origin", direction points away
+  if (dFirst <= dLast) {
+    return { dx: last.x - first.x, dy: last.y - first.y };
+  }
+  return { dx: first.x - last.x, dy: first.y - last.y };
+};
+
+export const CanvasProtractor = memo(({ visible, onClose, onRulerUpdate, containerRef, zoomRef, panRef, zoomDisplay, strokes }: CanvasProtractorProps) => {
   const [position, setPosition] = useState({ x: 80, y: 260 });
   const [rotation, setRotation] = useState(0);
   const dragRef = useRef<{ startX: number; startY: number; startPosX: number; startPosY: number } | null>(null);
   const rotateRef = useRef<{ startAngle: number; startRotation: number; cx: number; cy: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+  const [worldCenter, setWorldCenter] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (!visible) { onRulerUpdate(null); return; }
+    if (!visible) { onRulerUpdate(null); setWorldCenter(null); return; }
     const zoom = zoomRef.current;
     const pan = panRef.current;
     const rad = (rotation * Math.PI) / 180;
@@ -62,12 +95,40 @@ export const CanvasProtractor = memo(({ visible, onClose, onRulerUpdate, contain
     const y1 = (by - pan.y) / zoom;
     const x2 = (ex - pan.x) / zoom;
     const y2 = (ey - pan.y) / zoom;
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    setWorldCenter({ x: cx, y: cy });
     const ldx = x2 - x1; const ldy = y2 - y1;
     const len = Math.sqrt(ldx * ldx + ldy * ldy);
     const nx = len > 0 ? -ldy / len : 0;
     const ny = len > 0 ? ldx / len : 0;
-    onRulerUpdate({ x1, y1, x2, y2, nx, ny });
+    onRulerUpdate({ x1, y1, x2, y2, nx, ny, cx, cy });
   }, [visible, position, rotation, zoomDisplay, onRulerUpdate]);
+
+  // Compute angle from strokes near center
+  const measuredAngle = useMemo(() => {
+    if (!worldCenter || !strokes || strokes.length < 2) return null;
+    const radius = ANGLE_DETECT_RADIUS / (zoomRef.current || 1);
+    // Find the last 2 strokes that have an endpoint near the center
+    const nearStrokes: StrokeData[] = [];
+    for (let i = strokes.length - 1; i >= 0 && nearStrokes.length < 2; i--) {
+      const s = strokes[i];
+      if (s.points.length < 2) continue;
+      const first = s.points[0];
+      const last = s.points[s.points.length - 1];
+      const dFirst = Math.sqrt((first.x - worldCenter.x) ** 2 + (first.y - worldCenter.y) ** 2);
+      const dLast = Math.sqrt((last.x - worldCenter.x) ** 2 + (last.y - worldCenter.y) ** 2);
+      if (dFirst < radius || dLast < radius) {
+        nearStrokes.push(s);
+      }
+    }
+    if (nearStrokes.length < 2) return null;
+    const dir1 = getStrokeDirection(nearStrokes[0], worldCenter.x, worldCenter.y);
+    const dir2 = getStrokeDirection(nearStrokes[1], worldCenter.x, worldCenter.y);
+    if (!dir1 || !dir2) return null;
+    const angle = angleBetween(dir1.dx, dir1.dy, dir2.dx, dir2.dy);
+    return Math.round(angle * 10) / 10;
+  }, [worldCenter, strokes, zoomDisplay]);
 
   const handleDragStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -176,6 +237,33 @@ export const CanvasProtractor = memo(({ visible, onClose, onRulerUpdate, contain
         {ticks}
       </svg>
 
+      {/* Angle measurement display */}
+      {measuredAngle !== null && (
+        <div
+          className="absolute flex items-center justify-center pointer-events-none"
+          style={{
+            left: PROTRACTOR_RADIUS - 28,
+            top: PROTRACTOR_RADIUS - 44,
+            width: 56,
+            height: 24,
+          }}
+        >
+          <div
+            className="rounded-md px-2 py-0.5 text-center font-mono font-bold"
+            style={{
+              fontSize: '11px',
+              background: 'rgba(59,130,246,0.85)',
+              color: 'white',
+              boxShadow: '0 2px 8px rgba(59,130,246,0.4)',
+              letterSpacing: '0.5px',
+            }}
+          >
+            {measuredAngle}°
+          </div>
+        </div>
+      )}
+
+      {/* Rotate handle */}
       <div
         className="absolute -right-5 top-1/2 w-5 h-5 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing"
         style={{ background: 'rgba(59,130,246,0.8)', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}
@@ -184,6 +272,7 @@ export const CanvasProtractor = memo(({ visible, onClose, onRulerUpdate, contain
         <RotateCw className="h-3 w-3 text-white" strokeWidth={2.5} />
       </div>
 
+      {/* Close button */}
       <div
         className="absolute -right-1 -top-3 w-4 h-4 rounded-full flex items-center justify-center cursor-pointer"
         style={{ background: 'rgba(239,68,68,0.85)', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }}

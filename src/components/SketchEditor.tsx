@@ -3965,6 +3965,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           zoomRef={zoomRef}
           panRef={panRef}
           zoomDisplay={zoomDisplay}
+          strokes={layersRef.current.find(l => l.id === activeLayerId)?.strokes}
         />
         {/* Triangle ruler overlay */}
         <CanvasTriangle
