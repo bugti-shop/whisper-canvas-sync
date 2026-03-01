@@ -3592,21 +3592,30 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   }, []);
 
   // Initial mount
+  const hasMountedRef = useRef(false);
   useEffect(() => {
     if (initialData) {
       loadInitialData(initialData);
       lastEmittedRef.current = initialData;
     }
+    hasMountedRef.current = true;
     resizeCanvas();
     const handleResize = () => resizeCanvas();
     window.addEventListener('resize', handleResize);
-    return () => { window.removeEventListener('resize', handleResize); cancelAnimationFrame(rafRef.current); };
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(rafRef.current);
+      // Reset on unmount so re-mount always reloads
+      lastEmittedRef.current = '';
+      hasMountedRef.current = false;
+    };
   }, []);
 
   // Re-load when initialData prop changes externally (e.g., note reopened)
   const prevInitialDataRef = useRef(initialData);
   useEffect(() => {
-    if (initialData && initialData !== prevInitialDataRef.current && initialData !== lastEmittedRef.current) {
+    if (!hasMountedRef.current) return; // skip on first render, handled above
+    if (initialData && initialData !== prevInitialDataRef.current) {
       prevInitialDataRef.current = initialData;
       loadInitialData(initialData);
       lastEmittedRef.current = initialData;
