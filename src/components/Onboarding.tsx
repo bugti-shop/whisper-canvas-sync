@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, FileText, CheckSquare, Palette, FolderTree, Clock, Shield, Users, Bell, Zap, Brain, Sparkles, Target, Layers, PenTool } from 'lucide-react';
 import { triggerHaptic, triggerNotificationHaptic } from '@/utils/haptics';
+import { getSuggestedFolders, getSuggestedNoteTypes } from '@/utils/personalization';
+import { setVisibleNoteTypes } from '@/utils/noteTypeVisibility';
 import { setSetting } from '@/utils/settingsStorage';
 import { useTranslation } from 'react-i18next';
 import appLogo from '@/assets/app-logo.png';
@@ -139,9 +141,28 @@ export const Onboarding = ({ onComplete }: OnboardingProps) => {
         });
       }, 30);
       
-      // Save answers and complete
+      // Save answers and apply personalization
       await setSetting('onboardingAnswers', answers);
       await setSetting('onboardingComplete', 'true');
+      
+      // Apply personalized note types
+      const suggestedTypes = getSuggestedNoteTypes(answers);
+      if (suggestedTypes.length > 0) {
+        await setVisibleNoteTypes(suggestedTypes);
+      }
+      
+      // Apply personalized folders
+      const suggestedFolders = getSuggestedFolders(answers);
+      if (suggestedFolders.length > 0) {
+        const folders = suggestedFolders.map((name, index) => ({
+          id: `folder-${Date.now()}-${index}`,
+          name,
+          isDefault: false,
+          createdAt: new Date(),
+          color: ['#3c78f0', '#10b981', '#f59e0b'][index % 3],
+        }));
+        await setSetting('folders', folders);
+      }
       
       setTimeout(() => {
         clearInterval(interval);
