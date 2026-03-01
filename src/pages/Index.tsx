@@ -426,6 +426,7 @@ const Index = () => {
   }, []);
 
   const handleEditNote = async (note: Note) => {
+    if (note.type === 'sketch' && !requireFeature('sketch')) return;
     setSelectedNote(note);
     setIsEditorOpen(true);
   };
@@ -1385,9 +1386,10 @@ const Index = () => {
               )}
               {isTypeVisible('code') && isTypeVisible('sketch') && <DropdownMenuSeparator />}
               {isTypeVisible('sketch') && (
-                <DropdownMenuItem onClick={() => { triggerHaptic('medium'); handleCreateNote('sketch'); setNoteTypeSelectorOpen(false); }} className="gap-2">
+                <DropdownMenuItem onClick={() => { if (!requireFeature('sketch')) return; triggerHaptic('medium'); handleCreateNote('sketch'); setNoteTypeSelectorOpen(false); }} className="gap-2">
                   <PenTool className="h-4 w-4 text-teal-500" />
                   {t('notes.noteTypes.sketch', 'Sketch')}
+                  {!isPro && <Crown className="h-3.5 w-3.5 ml-auto" style={{ color: '#3c78f0' }} />}
                 </DropdownMenuItem>
               )}
               {isTypeVisible('sketch') && isTypeVisible('linkedin') && <DropdownMenuSeparator />}
