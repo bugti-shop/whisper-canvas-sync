@@ -3080,6 +3080,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       version: 2,
     };
     const json = JSON.stringify(data);
+    const strokeCount = layersRef.current.reduce((sum, l) => sum + l.strokes.length, 0);
+    console.log(`[SketchEditor] emitChange: ${strokeCount} strokes, json length: ${json.length}`);
     lastEmittedRef.current = json;
     onChange(json);
   }, [onChange, activeLayerId, background]);
@@ -3564,11 +3566,17 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   const lastEmittedRef = useRef<string>('');
 
   const loadInitialData = useCallback((dataStr: string) => {
-    if (!dataStr) return;
+    if (!dataStr) {
+      console.log('[SketchEditor] loadInitialData: empty dataStr, skipping');
+      return;
+    }
     try {
       const data = JSON.parse(dataStr);
+      console.log(`[SketchEditor] loadInitialData: version=${data.version}, layers=${data.layers?.length}, dataStr length=${dataStr.length}`);
       if (data.version === 2 && data.layers) {
         layersRef.current = data.layers.map((l: any) => ({ ...l, textAnnotations: l.textAnnotations || [], stickyNotes: l.stickyNotes || [], images: l.images || [] }));
+        const totalStrokes = layersRef.current.reduce((sum, l) => sum + l.strokes.length, 0);
+        console.log(`[SketchEditor] Loaded ${totalStrokes} strokes from initialData`);
         // Track max text id, sticky id, image id
         for (const l of layersRef.current) {
           for (const ta of l.textAnnotations) {
@@ -3588,7 +3596,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         layers[0].strokes = data.strokes;
         layersRef.current = layers;
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.error('[SketchEditor] loadInitialData parse error:', e); }
   }, []);
 
   // Initial mount
