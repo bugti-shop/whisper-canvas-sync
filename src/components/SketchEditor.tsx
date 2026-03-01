@@ -15,6 +15,7 @@ import {
   Heart, Cloud, MessageSquare, Pentagon, Moon, Cylinder,
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { CanvasRuler, RulerLine, snapToRuler } from '@/components/CanvasRuler';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
@@ -1811,7 +1812,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   // Focus mode & ruler state
   const [focusMode, setFocusMode] = useState(false);
   const [showRulers, setShowRulers] = useState(false);
-
+  const [showPhysicalRuler, setShowPhysicalRuler] = useState(false);
+  const physicalRulerRef = useRef<RulerLine | null>(null);
   // Fill color state for shapes
   const [fillEnabled, setFillEnabled] = useState(false);
   const [fillColor, setFillColor] = useState('#3b82f6');
@@ -2424,9 +2426,18 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     const screenY = e.clientY - rect.top;
     const zoom = zoomRef.current;
     const pan = panRef.current;
+    let wx = (screenX - pan.x) / zoom;
+    let wy = (screenY - pan.y) / zoom;
+    
+    // Snap to physical ruler edge if active
+    if (physicalRulerRef.current) {
+      const snapped = snapToRuler(wx, wy, physicalRulerRef.current);
+      if (snapped.snapped) { wx = snapped.x; wy = snapped.y; }
+    }
+    
     return {
-      x: (screenX - pan.x) / zoom,
-      y: (screenY - pan.y) / zoom,
+      x: wx,
+      y: wy,
       pressure: e.pressure > 0 ? e.pressure : 0.5,
       timestamp: e.timeStamp,
     };
@@ -3919,6 +3930,15 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             />
           </>
         )}
+        {/* Physical ruler overlay */}
+        <CanvasRuler
+          visible={showPhysicalRuler}
+          onClose={() => setShowPhysicalRuler(false)}
+          onRulerUpdate={useCallback((r: RulerLine | null) => { physicalRulerRef.current = r; }, [])}
+          containerRef={containerRef as React.RefObject<HTMLDivElement>}
+          zoom={zoomRef.current}
+          pan={panRef.current}
+        />
         {/* Eyedropper mode indicator */}
         {eyedropperActive && (
           <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-lg px-2 py-1 text-[10px] flex items-center gap-1">
@@ -4606,18 +4626,43 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           </PopoverContent>
         </Popover>
 
-        <button
-          className={cn(
-            'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
-            showRulers
-              ? 'bg-primary/15 text-primary scale-105'
-              : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
-          )}
-          onClick={() => setShowRulers(!showRulers)}
-          title={showRulers ? 'Hide Rulers' : 'Show Rulers'}
-        >
-          <Ruler className="h-5 w-5" strokeWidth={showRulers ? 2.5 : 1.8} />
-        </button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button
+              className={cn(
+                'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
+                (showRulers || showPhysicalRuler)
+                  ? 'bg-primary/15 text-primary scale-105'
+                  : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
+              )}
+              title="Ruler Options"
+            >
+              <Ruler className="h-5 w-5" strokeWidth={(showRulers || showPhysicalRuler) ? 2.5 : 1.8} />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-2 bg-card" align="center" side="top">
+            <div className="flex flex-col gap-1">
+              <Button
+                variant={showRulers ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8 text-xs justify-start gap-2 px-2"
+                onClick={() => setShowRulers(!showRulers)}
+              >
+                <Grid3X3 className="h-3.5 w-3.5" />
+                {showRulers ? 'Hide Pixel Rulers' : 'Show Pixel Rulers'}
+              </Button>
+              <Button
+                variant={showPhysicalRuler ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8 text-xs justify-start gap-2 px-2"
+                onClick={() => setShowPhysicalRuler(!showPhysicalRuler)}
+              >
+                <Ruler className="h-3.5 w-3.5" />
+                {showPhysicalRuler ? 'Hide Straight Edge' : '📏 Straight Edge'}
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
 
         {/* Focus mode toggle */}
         <button
