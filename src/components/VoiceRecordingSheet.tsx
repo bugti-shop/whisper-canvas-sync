@@ -48,9 +48,14 @@ export const VoiceRecordingSheet = ({ isOpen, onClose, onRecordingComplete }: Vo
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close();
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      try {
+        audioContextRef.current.close();
+      } catch (e) {
+        // Already closed, ignore
+      }
     }
+    audioContextRef.current = null;
     setIsRecording(false);
     setIsPaused(false);
     setRecordingTime(0);

@@ -15,6 +15,8 @@ const RICH_TEXT_CONFIG = {
     'blockquote', 'hr', 'sub', 'sup', 's', 'strike',
     'font', 'small', 'big',
     'audio', 'source', // Allow audio elements for voice recordings
+    'button', // Allow buttons for inline voice player controls
+    'svg', 'polygon', 'rect', 'path', 'circle', 'line', 'polyline', 'g', // Allow SVG icons in voice player
   ],
   ALLOWED_ATTR: [
     'href', 'src', 'alt', 'class', 'style', 'id',
@@ -24,6 +26,9 @@ const RICH_TEXT_CONFIG = {
     'data-file-name', 'data-file-type', 'data-file-size', 'data-file-url', 'data-click-attached', // Allow file attachment attributes
     'color', 'size', 'face', 'contenteditable', 'draggable',
     'controls', 'type', // Allow audio controls
+    'aria-label', 'role', 'tabindex', // Accessibility attrs for voice player
+    'viewBox', 'xmlns', 'fill', 'stroke', 'stroke-width', 'stroke-linecap', 'stroke-linejoin', // SVG attrs
+    'points', 'x', 'y', 'rx', 'ry', 'd', 'cx', 'cy', 'r', // SVG geometry attrs
   ],
   ALLOW_DATA_ATTR: true,
   // Allow safe URLs only
