@@ -16,6 +16,8 @@ import {
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CanvasRuler, RulerLine, snapToRuler } from '@/components/CanvasRuler';
+import { CanvasProtractor, ProtractorLine, snapToProtractor } from '@/components/CanvasProtractor';
+import { CanvasTriangle, TriangleEdges, snapToTriangle } from '@/components/CanvasTriangle';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
@@ -1814,6 +1816,10 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   const [showRulers, setShowRulers] = useState(false);
   const [showPhysicalRuler, setShowPhysicalRuler] = useState(false);
   const physicalRulerRef = useRef<RulerLine | null>(null);
+  const [showProtractor, setShowProtractor] = useState(false);
+  const protractorRef = useRef<ProtractorLine | null>(null);
+  const [showTriangle, setShowTriangle] = useState(false);
+  const triangleRef = useRef<TriangleEdges | null>(null);
   // Fill color state for shapes
   const [fillEnabled, setFillEnabled] = useState(false);
   const [fillColor, setFillColor] = useState('#3b82f6');
@@ -2432,6 +2438,16 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     // Snap to physical ruler edge if active
     if (physicalRulerRef.current) {
       const snapped = snapToRuler(wx, wy, physicalRulerRef.current);
+      if (snapped.snapped) { wx = snapped.x; wy = snapped.y; }
+    }
+    // Snap to protractor flat edge
+    if (protractorRef.current) {
+      const snapped = snapToProtractor(wx, wy, protractorRef.current);
+      if (snapped.snapped) { wx = snapped.x; wy = snapped.y; }
+    }
+    // Snap to triangle edges
+    if (triangleRef.current) {
+      const snapped = snapToTriangle(wx, wy, triangleRef.current);
       if (snapped.snapped) { wx = snapped.x; wy = snapped.y; }
     }
     
@@ -3939,6 +3955,24 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
           zoom={zoomRef.current}
           pan={panRef.current}
         />
+        {/* Protractor overlay */}
+        <CanvasProtractor
+          visible={showProtractor}
+          onClose={() => setShowProtractor(false)}
+          onRulerUpdate={useCallback((r: ProtractorLine | null) => { protractorRef.current = r; }, [])}
+          containerRef={containerRef as React.RefObject<HTMLDivElement>}
+          zoom={zoomRef.current}
+          pan={panRef.current}
+        />
+        {/* Triangle ruler overlay */}
+        <CanvasTriangle
+          visible={showTriangle}
+          onClose={() => setShowTriangle(false)}
+          onRulerUpdate={useCallback((r: TriangleEdges | null) => { triangleRef.current = r; }, [])}
+          containerRef={containerRef as React.RefObject<HTMLDivElement>}
+          zoom={zoomRef.current}
+          pan={panRef.current}
+        />
         {/* Eyedropper mode indicator */}
         {eyedropperActive && (
           <div className="absolute top-2 left-2 bg-primary text-primary-foreground rounded-lg px-2 py-1 text-[10px] flex items-center gap-1">
@@ -4631,13 +4665,13 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
             <button
               className={cn(
                 'h-10 w-10 flex-shrink-0 rounded-xl flex items-center justify-center transition-all duration-200',
-                (showRulers || showPhysicalRuler)
+                (showRulers || showPhysicalRuler || showProtractor || showTriangle)
                   ? 'bg-primary/15 text-primary scale-105'
                   : 'text-foreground/70 hover:bg-muted/80 hover:text-foreground active:scale-95'
               )}
               title="Ruler Options"
             >
-              <Ruler className="h-5 w-5" strokeWidth={(showRulers || showPhysicalRuler) ? 2.5 : 1.8} />
+              <Ruler className="h-5 w-5" strokeWidth={(showRulers || showPhysicalRuler || showProtractor || showTriangle) ? 2.5 : 1.8} />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-2 bg-card" align="center" side="top">
@@ -4659,6 +4693,24 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
               >
                 <Ruler className="h-3.5 w-3.5" />
                 {showPhysicalRuler ? 'Hide Straight Edge' : '📏 Straight Edge'}
+              </Button>
+              <Button
+                variant={showProtractor ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8 text-xs justify-start gap-2 px-2"
+                onClick={() => setShowProtractor(!showProtractor)}
+              >
+                <span className="text-sm">📐</span>
+                {showProtractor ? 'Hide Protractor' : 'Protractor'}
+              </Button>
+              <Button
+                variant={showTriangle ? 'secondary' : 'ghost'}
+                size="sm"
+                className="h-8 text-xs justify-start gap-2 px-2"
+                onClick={() => setShowTriangle(!showTriangle)}
+              >
+                <span className="text-sm">📐</span>
+                {showTriangle ? 'Hide Set Square' : 'Set Square (45°)'}
               </Button>
             </div>
           </PopoverContent>
