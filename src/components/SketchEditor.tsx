@@ -3071,6 +3071,11 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
   }, [redrawAll, tool, selectedIndices, activeLayerId, snapEnabled, background]);
 
   const emitChange = useCallback(() => {
+    // Don't emit empty state before initial data has been loaded
+    if (!initialLoadDoneRef.current) {
+      console.log('[SketchEditor] emitChange BLOCKED - initial load not done yet');
+      return;
+    }
     const data: SketchData = {
       layers: layersRef.current,
       activeLayerId,
@@ -3558,16 +3563,20 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
 
   const handleBackgroundChange = useCallback((bg: BackgroundType) => { setBackground(bg); }, []);
 
-  useEffect(() => { redrawAll(); emitChange(); }, [background]);
+  useEffect(() => { redrawAll(); if (initialLoadDoneRef.current) emitChange(); }, [background]);
 
   // --- Init ---
 
   // Track what we last emitted so we don't reload our own changes
   const lastEmittedRef = useRef<string>('');
+  
+  // Guard: don't emit changes until initial data has been loaded
+  const initialLoadDoneRef = useRef(false);
 
   const loadInitialData = useCallback((dataStr: string) => {
     if (!dataStr) {
       console.log('[SketchEditor] loadInitialData: empty dataStr, skipping');
+      initialLoadDoneRef.current = true;
       return;
     }
     try {
@@ -3596,7 +3605,8 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
         layers[0].strokes = data.strokes;
         layersRef.current = layers;
       }
-    } catch (e) { console.error('[SketchEditor] loadInitialData parse error:', e); }
+      initialLoadDoneRef.current = true;
+    } catch (e) { console.error('[SketchEditor] loadInitialData parse error:', e); initialLoadDoneRef.current = true; }
   }, []);
 
   // Initial mount
@@ -3605,6 +3615,9 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     if (initialData) {
       loadInitialData(initialData);
       lastEmittedRef.current = initialData;
+    } else {
+      // No initial data = new sketch, safe to emit
+      initialLoadDoneRef.current = true;
     }
     hasMountedRef.current = true;
     resizeCanvas();
@@ -3616,6 +3629,7 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
       // Reset on unmount so re-mount always reloads
       lastEmittedRef.current = '';
       hasMountedRef.current = false;
+      initialLoadDoneRef.current = false;
     };
   }, []);
 

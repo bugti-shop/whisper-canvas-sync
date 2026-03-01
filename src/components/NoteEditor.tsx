@@ -623,6 +623,20 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     const hasText = (title?.trim() || '') !== '' || (content?.trim() || '') !== '' || (codeContent?.trim() || '') !== '';
     if (!hasText) return;
 
+    // For sketch notes, don't auto-save if content looks like default empty sketch
+    // (no strokes in any layer). This prevents overwriting real data on mount.
+    if (noteType === 'sketch' && content) {
+      try {
+        const parsed = JSON.parse(content);
+        const totalStrokes = (parsed.layers || []).reduce((sum: number, l: any) => 
+          sum + (l.strokes?.length || 0) + (l.textAnnotations?.length || 0) + (l.stickyNotes?.length || 0) + (l.images?.length || 0), 0);
+        if (totalStrokes === 0 && note?.content) {
+          // Empty sketch but note has existing content - skip auto-save to prevent data loss
+          return;
+        }
+      } catch {}
+    }
+
     // Sketch data can be large; use shorter debounce to save sooner
     const delay = noteType === 'sketch' ? 300 : 700;
     const t = window.setTimeout(() => {
@@ -630,7 +644,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     }, delay);
 
     return () => window.clearTimeout(t);
-  }, [isOpen, title, content, codeContent, commitNote, noteType]);
+  }, [isOpen, title, content, codeContent, commitNote, noteType, note?.content]);
 
   // Save immediately if tab/app is backgrounded or page is refreshed/closed
   const buildCurrentNoteRef = useRef(buildCurrentNote);
