@@ -263,8 +263,8 @@ All colors MUST be HSL.
     to bottom,
     transparent,
     transparent calc(var(--line-gap) - 1px),
-    hsl(var(--muted-foreground) / 0.7) calc(var(--line-gap) - 1px),
-    hsl(var(--muted-foreground) / 0.7) var(--line-gap)
+    hsl(var(--muted-foreground) / 0.9) calc(var(--line-gap) - 1px),
+    hsl(var(--muted-foreground) / 0.9) var(--line-gap)
   );
   background-size: 100% var(--line-gap);
   background-position: 0 calc(var(--first-line-offset) - 1px);
