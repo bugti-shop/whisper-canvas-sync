@@ -1,433 +1,223 @@
-import { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, FileText, CheckSquare, Palette, FolderTree, Clock, Shield, Users, Bell, Zap, Brain, Sparkles, Target, Layers, PenTool } from 'lucide-react';
-import { triggerHaptic, triggerNotificationHaptic } from '@/utils/haptics';
-import { getSuggestedFolders, getSuggestedNoteTypes } from '@/utils/personalization';
-import { setVisibleNoteTypes } from '@/utils/noteTypeVisibility';
-import { setSetting } from '@/utils/settingsStorage';
-import { useTranslation } from 'react-i18next';
-import appLogo from '@/assets/app-logo.png';
+import { useState } from 'react';
+import { ChevronLeft, FileText, Clock, Palette, FolderTree, Bell, Users, Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Haptics, ImpactStyle } from '@capacitor/haptics';
+
+const triggerHaptic = async () => {
+  try {
+    await Haptics.impact({ style: ImpactStyle.Light });
+  } catch (error) {
+    console.log('Haptics not available');
+  }
+};
+
+interface OnboardingQuestion {
+  question: string;
+  options: {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    value: string;
+  }[];
+}
+
+const questions: OnboardingQuestion[] = [
+  {
+    question: "What's your primary use for notes?",
+    options: [
+      { icon: FileText, label: "Work and projects", value: "work" },
+      { icon: Clock, label: "Personal journaling", value: "journal" },
+      { icon: Users, label: "Study and learning", value: "study" },
+      { icon: Palette, label: "Creative writing", value: "creative" },
+    ],
+  },
+  {
+    question: "How do you prefer to organize?",
+    options: [
+      { icon: FolderTree, label: "Folders and categories", value: "folders" },
+      { icon: FileText, label: "Tags and labels", value: "tags" },
+      { icon: Clock, label: "By date and time", value: "date" },
+      { icon: Palette, label: "Color coding", value: "colors" },
+    ],
+  },
+  {
+    question: "What's your note-taking style?",
+    options: [
+      { icon: FileText, label: "Quick bullet points", value: "bullets" },
+      { icon: Palette, label: "Detailed paragraphs", value: "detailed" },
+      { icon: Clock, label: "Voice recordings", value: "voice" },
+      { icon: FolderTree, label: "Tables and structured notes", value: "tables" },
+    ],
+  },
+  {
+    question: "How often do you take notes?",
+    options: [
+      { icon: Clock, label: "Multiple times daily", value: "daily" },
+      { icon: FileText, label: "Few times a week", value: "weekly" },
+      { icon: Palette, label: "Occasionally", value: "occasional" },
+      { icon: FolderTree, label: "Rarely, but important", value: "rare" },
+    ],
+  },
+  {
+    question: "What features matter most?",
+    options: [
+      { icon: Shield, label: "Privacy and security", value: "privacy" },
+      { icon: Clock, label: "Quick access speed", value: "speed" },
+      { icon: Palette, label: "Rich formatting", value: "formatting" },
+      { icon: Users, label: "Easy sharing", value: "sharing" },
+    ],
+  },
+  {
+    question: "What stops you from staying organized?",
+    options: [
+      { icon: Clock, label: "Lack of consistency", value: "consistency" },
+      { icon: FileText, label: "Too many scattered notes", value: "scattered" },
+      { icon: Users, label: "Lack of time", value: "time" },
+      { icon: FolderTree, label: "Difficulty finding notes", value: "finding" },
+    ],
+  },
+  {
+    question: "How do you want to improve?",
+    options: [
+      { icon: Bell, label: "Better daily habits", value: "habits" },
+      { icon: FolderTree, label: "More organization", value: "organization" },
+      { icon: Clock, label: "Faster note capture", value: "capture" },
+      { icon: Palette, label: "More creative expression", value: "expression" },
+    ],
+  },
+];
 
 interface OnboardingProps {
   onComplete: () => void;
 }
 
-interface OnboardingStep {
-  id: string;
-  question: string;
-  subtitle?: string;
-  options: {
-    emoji: string;
-    label: string;
-    description?: string;
-    value: string;
-  }[];
-  allowMultiple?: boolean;
-}
-
-const steps: OnboardingStep[] = [
-  {
-    id: 'purpose',
-    question: "What brings you here?",
-    subtitle: "We'll personalize your experience",
-    options: [
-      { emoji: '💼', label: 'Work & Projects', description: 'Stay on top of tasks', value: 'work' },
-      { emoji: '📓', label: 'Personal Journal', description: 'Capture daily thoughts', value: 'journal' },
-      { emoji: '📚', label: 'Study & Learning', description: 'Organize study notes', value: 'study' },
-      { emoji: '🎨', label: 'Creative Writing', description: 'Express yourself freely', value: 'creative' },
-    ],
-  },
-  {
-    id: 'organize',
-    question: "How do you like to organize?",
-    subtitle: "Pick what feels natural",
-    options: [
-      { emoji: '📂', label: 'Folders & Categories', value: 'folders' },
-      { emoji: '🏷️', label: 'Tags & Labels', value: 'tags' },
-      { emoji: '🎨', label: 'Color Coding', value: 'colors' },
-      { emoji: '📅', label: 'By Date & Time', value: 'date' },
-    ],
-  },
-  {
-    id: 'style',
-    question: "What's your note-taking style?",
-    options: [
-      { emoji: '⚡', label: 'Quick Bullet Points', value: 'bullets' },
-      { emoji: '📝', label: 'Detailed Paragraphs', value: 'detailed' },
-      { emoji: '🎙️', label: 'Voice Recordings', value: 'voice' },
-      { emoji: '📊', label: 'Tables & Structured', value: 'tables' },
-    ],
-  },
-  {
-    id: 'frequency',
-    question: "How often will you use this?",
-    subtitle: "This helps us set the right reminders",
-    options: [
-      { emoji: '🔥', label: 'Multiple times daily', value: 'daily' },
-      { emoji: '📆', label: 'Few times a week', value: 'weekly' },
-      { emoji: '🌙', label: 'Occasionally', value: 'occasional' },
-      { emoji: '💎', label: 'Rarely, but important', value: 'rare' },
-    ],
-  },
-  {
-    id: 'priority',
-    question: "What matters most to you?",
-    options: [
-      { emoji: '🔒', label: 'Privacy & Security', value: 'privacy' },
-      { emoji: '⚡', label: 'Speed & Quick Access', value: 'speed' },
-      { emoji: '✨', label: 'Rich Formatting', value: 'formatting' },
-      { emoji: '📤', label: 'Easy Sharing', value: 'sharing' },
-    ],
-  },
-  {
-    id: 'challenge',
-    question: "What's your biggest challenge?",
-    subtitle: "We'll help you overcome it",
-    options: [
-      { emoji: '🎯', label: 'Staying Consistent', value: 'consistency' },
-      { emoji: '🗂️', label: 'Too Many Scattered Notes', value: 'scattered' },
-      { emoji: '⏰', label: 'Not Enough Time', value: 'time' },
-      { emoji: '🔍', label: 'Finding Old Notes', value: 'finding' },
-    ],
-  },
-  {
-    id: 'goal',
-    question: "What's your #1 goal?",
-    subtitle: "Let's make it happen together",
-    options: [
-      { emoji: '🧠', label: 'Better Daily Habits', value: 'habits' },
-      { emoji: '📋', label: 'More Organization', value: 'organization' },
-      { emoji: '🚀', label: 'Faster Note Capture', value: 'capture' },
-      { emoji: '🎨', label: 'Creative Expression', value: 'expression' },
-    ],
-  },
-];
-
 export const Onboarding = ({ onComplete }: OnboardingProps) => {
-  const { t } = useTranslation();
-  const [currentStep, setCurrentStep] = useState(-1); // -1 = splash
+  const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [direction, setDirection] = useState<1 | -1>(1);
-  const [isCompleting, setIsCompleting] = useState(false);
-  const [completionProgress, setCompletionProgress] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('left');
+  const totalSteps = questions.length + 2;
 
-  const totalSteps = steps.length;
-  const progress = currentStep < 0 ? 0 : ((currentStep + 1) / totalSteps) * 100;
+  const currentQuestion = currentStep < questions.length ? questions[currentStep] : null;
+  const progress = ((currentStep + 1) / totalSteps) * 100;
 
-  const handleSelect = useCallback(async (value: string) => {
-    triggerHaptic('heavy');
-    setAnswers(prev => ({ ...prev, [currentStep]: value }));
-  }, [currentStep]);
-
-  const handleContinue = useCallback(async () => {
-    triggerHaptic('heavy');
-    setDirection(1);
-    
-    if (currentStep < totalSteps - 1) {
-      setCurrentStep(prev => prev + 1);
-    } else {
-      // Final step - show completion
-      setIsCompleting(true);
-      triggerNotificationHaptic('success');
-      
-      // Animate progress
-      const interval = setInterval(() => {
-        setCompletionProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            return 100;
-          }
-          return prev + 2;
-        });
-      }, 30);
-      
-      // Save answers and apply personalization
-      await setSetting('onboardingAnswers', answers);
-      await setSetting('onboardingComplete', 'true');
-      
-      // Apply personalized note types
-      const suggestedTypes = getSuggestedNoteTypes(answers);
-      if (suggestedTypes.length > 0) {
-        await setVisibleNoteTypes(suggestedTypes);
-      }
-      
-      // Apply personalized folders
-      const suggestedFolders = getSuggestedFolders(answers);
-      if (suggestedFolders.length > 0) {
-        const folders = suggestedFolders.map((name, index) => ({
-          id: `folder-${Date.now()}-${index}`,
-          name,
-          isDefault: false,
-          createdAt: new Date(),
-          color: ['#3c78f0', '#10b981', '#f59e0b'][index % 3],
-        }));
-        await setSetting('folders', folders);
-      }
-      
-      setTimeout(() => {
-        clearInterval(interval);
-        triggerNotificationHaptic('success');
-        onComplete();
-      }, 2000);
-    }
-  }, [currentStep, totalSteps, answers, onComplete]);
-
-  const handleBack = useCallback(async () => {
-    triggerHaptic('medium');
-    setDirection(-1);
-    if (currentStep > 0) {
-      setCurrentStep(prev => prev - 1);
-    } else if (currentStep === 0) {
-      setCurrentStep(-1);
-    }
-  }, [currentStep]);
-
-  const handleSkip = useCallback(async () => {
-    triggerHaptic('medium');
-    await setSetting('onboardingComplete', 'skipped');
-    onComplete();
-  }, [onComplete]);
-
-  const handleGetStarted = useCallback(async () => {
-    triggerHaptic('heavy');
-    setDirection(1);
-    setCurrentStep(0);
-  }, []);
-
-  const slideVariants = {
-    enter: (dir: number) => ({
-      x: dir > 0 ? 300 : -300,
-      opacity: 0,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-    },
-    exit: (dir: number) => ({
-      x: dir > 0 ? -300 : 300,
-      opacity: 0,
-    }),
+  const handleSelect = async (value: string) => {
+    await triggerHaptic();
+    setAnswers({ ...answers, [currentStep]: value });
   };
 
-  // Completion screen
-  if (isCompleting) {
+  const handleContinue = async () => {
+    await triggerHaptic();
+    setSlideDirection('left');
+    if (currentStep < totalSteps - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      const { setSetting } = await import('@/utils/settingsStorage');
+      await setSetting('onboardingComplete', 'true');
+      await setSetting('onboardingAnswers', answers);
+      onComplete();
+    }
+  };
+
+  const handleSkip = async () => {
+    await triggerHaptic();
+    const { setSetting } = await import('@/utils/settingsStorage');
+    await setSetting('onboardingComplete', 'skipped');
+    onComplete();
+  };
+
+  const handleBack = async () => {
+    await triggerHaptic();
+    setSlideDirection('right');
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const selectedValue = currentQuestion ? answers[currentStep] : undefined;
+
+  if (currentStep < questions.length && currentQuestion) {
     return (
-      <div className="fixed inset-0 bg-background z-50 flex flex-col items-center justify-center p-6"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-        <motion.div
-          initial={{ scale: 0.5, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', duration: 0.6 }}
-          className="flex flex-col items-center gap-6"
-        >
-          <div className="text-6xl">🎉</div>
-          <h1 className="text-2xl font-bold text-foreground text-center">
-            Setting up your workspace...
-          </h1>
-          <div className="w-64 h-3 bg-muted rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-primary rounded-full"
-              initial={{ width: 0 }}
-              animate={{ width: `${completionProgress}%` }}
-              transition={{ duration: 0.1 }}
-            />
-          </div>
-          <p className="text-muted-foreground text-sm">
-            {completionProgress < 40 ? 'Personalizing your experience...' :
-             completionProgress < 70 ? 'Configuring smart features...' :
-             completionProgress < 95 ? 'Almost ready...' : 'Let\'s go! 🚀'}
-          </p>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Splash screen
-  if (currentStep === -1) {
-    return (
-      <div className="fixed inset-0 bg-primary z-50 flex flex-col items-center justify-between p-6"
-        style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 48px)', paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 32px)' }}>
-        
-        <div className="flex-1 flex flex-col items-center justify-center gap-6">
-          <motion.div
-            initial={{ scale: 0.6, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            transition={{ type: 'spring', duration: 0.8 }}
-          >
-            <img
-              src={appLogo}
-              alt="App Logo"
-              className="w-40 h-40 object-contain drop-shadow-2xl"
-            />
-          </motion.div>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 0.5 }}
-            className="text-center space-y-2"
-          >
-            <h1 className="text-3xl font-extrabold text-primary-foreground">
-              Npd Notes
-            </h1>
-            <p className="text-primary-foreground/80 text-lg">
-              Your notes, your way.
-            </p>
-          </motion.div>
-        </div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5, duration: 0.5 }}
-          className="w-full max-w-md space-y-3"
-        >
-          <button
-            onClick={handleGetStarted}
-            className="w-full h-14 rounded-2xl bg-primary-foreground text-primary font-bold text-lg tracking-wide shadow-lg border-b-4 border-primary-foreground/70 active:border-b-0 active:translate-y-1 transition-all"
-          >
-            GET STARTED
-          </button>
-          <button
-            onClick={handleSkip}
-            className="w-full py-3 text-primary-foreground/70 font-medium text-sm"
-          >
-            I already know my way around
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // Question steps
-  const currentQuestion = steps[currentStep];
-  const selectedValue = answers[currentStep];
-  const isLastStep = currentStep === totalSteps - 1;
-
-  return (
-    <div className="fixed inset-0 bg-background z-50 flex flex-col"
-      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      
-      {/* Header with back, progress bar, skip */}
-      <div className="px-4 pt-3 pb-2">
-        <div className="flex items-center gap-3">
+      <div className="fixed inset-0 bg-background z-50 flex flex-col" style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="px-4 pt-4 flex items-center justify-between">
           <button
             onClick={handleBack}
-            className="w-10 h-10 flex items-center justify-center rounded-full text-muted-foreground hover:bg-muted transition-colors"
+            className="flex items-center justify-center w-12 h-12 rounded-full bg-muted hover:bg-muted/80 transition-colors"
+            disabled={currentStep === 0}
           >
             <ChevronLeft className="w-6 h-6" />
           </button>
-          
-          {/* Progress bar */}
-          <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden">
-            <motion.div
-              className="h-full bg-primary rounded-full"
-              initial={false}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.4, ease: 'easeOut' }}
-            />
-          </div>
-          
+
           <button
             onClick={handleSkip}
-            className="text-muted-foreground hover:text-foreground font-medium text-sm px-2 py-1 transition-colors"
+            className="text-muted-foreground hover:text-foreground transition-colors px-4 py-2"
           >
             Skip
           </button>
         </div>
-      </div>
 
-      {/* Content */}
-      <div className="flex-1 px-6 flex flex-col overflow-hidden">
-        <AnimatePresence mode="wait" custom={direction}>
-          <motion.div
+        <div className="px-4 mt-4">
+          <div className="h-1 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full transition-all duration-300 ease-out bg-primary"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="flex-1 px-6 pt-8 pb-6 flex flex-col overflow-hidden">
+          <div
             key={currentStep}
-            custom={direction}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="flex-1 flex flex-col pt-4 pb-6"
+            className="flex-1 flex flex-col animate-fade-in"
           >
-            {/* Question */}
-            <div className="mb-2">
-              <h1 className="text-2xl font-extrabold text-foreground leading-tight">
-                {currentQuestion.question}
-              </h1>
-              {currentQuestion.subtitle && (
-                <p className="text-muted-foreground mt-1.5 text-base">
-                  {currentQuestion.subtitle}
-                </p>
-              )}
-            </div>
+            <h1 className="text-3xl font-bold mb-8">
+              {currentQuestion.question}
+            </h1>
 
-            {/* Options */}
-            <div className="flex-1 flex flex-col justify-center">
-              <div className="space-y-2.5">
-                {currentQuestion.options.map((option) => {
-                  const isSelected = selectedValue === option.value;
+            <div className="space-y-3 flex-1">
+              {currentQuestion.options.map((option) => {
+                const Icon = option.icon;
+                const isSelected = selectedValue === option.value;
 
-                  return (
-                    <motion.button
-                      key={option.value}
-                      onClick={() => handleSelect(option.value)}
-                      whileTap={{ scale: 0.97 }}
-                      className={`w-full p-4 rounded-2xl flex items-center gap-4 text-left transition-all duration-200 border-2 ${
-                        isSelected
-                          ? 'border-primary bg-primary/5 shadow-sm'
-                          : 'border-border bg-card hover:border-muted-foreground/30'
-                      }`}
-                    >
-                      <span className="text-2xl flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-muted">
-                        {option.emoji}
-                      </span>
-                      <div className="flex-1 min-w-0">
-                        <span className={`text-base font-semibold block ${
-                          isSelected ? 'text-primary' : 'text-foreground'
-                        }`}>
-                          {option.label}
-                        </span>
-                        {option.description && (
-                          <span className="text-sm text-muted-foreground">
-                            {option.description}
-                          </span>
-                        )}
-                      </div>
-                      {isSelected && (
-                        <motion.div
-                          initial={{ scale: 0 }}
-                          animate={{ scale: 1 }}
-                          className="w-6 h-6 rounded-full bg-primary flex items-center justify-center flex-shrink-0"
-                        >
-                          <svg className="w-3.5 h-3.5 text-primary-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </motion.div>
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => handleSelect(option.value)}
+                    className={cn(
+                      "w-full p-4 rounded-2xl flex items-center gap-4 transition-all duration-200 text-left",
+                      isSelected ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "w-12 h-12 rounded-full flex items-center justify-center flex-shrink-0",
+                        isSelected ? "bg-primary-foreground text-primary" : "bg-background text-foreground"
                       )}
-                    </motion.button>
-                  );
-                })}
-              </div>
+                    >
+                      <Icon className="w-6 h-6" />
+                    </div>
+                    <span className="text-lg font-medium">{option.label}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Continue button */}
-            <div className="pt-4">
-              <button
+            <div className="pt-6">
+              <Button
                 onClick={handleContinue}
                 disabled={!selectedValue}
-                className={`w-full h-14 rounded-2xl font-bold text-lg tracking-wide transition-all duration-200 ${
-                  selectedValue
-                    ? 'bg-primary text-primary-foreground shadow-lg border-b-4 border-primary/70 active:border-b-0 active:translate-y-1'
-                    : 'bg-muted text-muted-foreground cursor-not-allowed'
-                }`}
+                className="w-full h-14 text-lg font-semibold rounded-full disabled:opacity-50"
               >
-                {isLastStep ? 'FINISH' : 'CONTINUE'}
-              </button>
+                Continue
+              </Button>
             </div>
-          </motion.div>
-        </AnimatePresence>
+          </div>
+        </div>
       </div>
-    </div>
-  );
+    );
+  }
+
+  return null;
 };
+
+function cn(...classes: (string | boolean | undefined)[]) {
+  return classes.filter(Boolean).join(' ');
+}
