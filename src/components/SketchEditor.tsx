@@ -16,7 +16,10 @@ import {
 } from 'lucide-react';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Share } from '@capacitor/share';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Capacitor } from '@capacitor/core';
 import { jsPDF } from 'jspdf';
+import { toast } from 'sonner';
 
 // --- Types ---
 
@@ -3297,17 +3300,45 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     onImageExport(canvas.toDataURL('image/png'));
   }, [onImageExport]);
 
-  const handleExportSvg = useCallback(() => {
+  const nativeSaveAndShare = useCallback(async (base64Data: string, filename: string, mimeType: string, shareOnly = false) => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const result = await Filesystem.writeFile({
+          path: filename,
+          data: base64Data,
+          directory: Directory.Cache,
+        });
+        if (shareOnly) {
+          await Share.share({ title: filename, url: result.uri, dialogTitle: 'Share Sketch' });
+        } else {
+          await Share.share({ title: filename, url: result.uri, dialogTitle: 'Save / Share' });
+        }
+        toast.success(`${filename} ready`);
+      } catch (e) {
+        console.error('Native save/share failed:', e);
+        toast.error('Export failed');
+      }
+    } else {
+      // Web fallback
+      const byteStr = atob(base64Data);
+      const arr = new Uint8Array(byteStr.length);
+      for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+      const blob = new Blob([arr], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+    }
+  }, []);
+
+  const handleExportSvg = useCallback(async () => {
     const { w, h } = canvasSizeRef.current;
     const svg = generateSvg(layersRef.current, w, h, background);
-    const blob = new Blob([svg], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'sketch.svg'; a.click();
-    URL.revokeObjectURL(url);
-  }, [background]);
+    const base64 = btoa(unescape(encodeURIComponent(svg)));
+    await nativeSaveAndShare(base64, 'sketch.svg', 'image/svg+xml');
+  }, [background, nativeSaveAndShare]);
 
-  const handleExportPdf = useCallback(() => {
+  const handleExportPdf = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const { w, h } = canvasSizeRef.current;
@@ -3315,45 +3346,25 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
     const pdf = new jsPDF({ orientation, unit: 'px', format: [w, h] });
     const imgData = canvas.toDataURL('image/png');
     pdf.addImage(imgData, 'PNG', 0, 0, w, h);
-    pdf.save('sketch.pdf');
-  }, []);
+    const pdfBase64 = pdf.output('datauristring').split(',')[1];
+    await nativeSaveAndShare(pdfBase64, 'sketch.pdf', 'application/pdf');
+  }, [nativeSaveAndShare]);
 
-  const handleDownloadPng = useCallback(() => {
+  const handleDownloadPng = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const url = canvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url; a.download = 'sketch.png'; a.click();
-  }, []);
+    const dataUrl = canvas.toDataURL('image/png');
+    const base64 = dataUrl.split(',')[1];
+    await nativeSaveAndShare(base64, 'sketch.png', 'image/png');
+  }, [nativeSaveAndShare]);
 
   const handleNativeShare = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    try {
-      const dataUrl = canvas.toDataURL('image/png');
-      await Share.share({
-        title: 'Sketch',
-        text: 'Check out my sketch!',
-        url: dataUrl,
-        dialogTitle: 'Share Sketch',
-      });
-    } catch {
-      // Fallback: try Web Share API with blob
-      try {
-        const blob = await new Promise<Blob>((resolve) =>
-          canvas.toBlob((b) => resolve(b!), 'image/png')
-        );
-        const file = new File([blob], 'sketch.png', { type: 'image/png' });
-        if (navigator.share && navigator.canShare?.({ files: [file] })) {
-          await navigator.share({ title: 'Sketch', files: [file] });
-        } else {
-          handleDownloadPng();
-        }
-      } catch {
-        handleDownloadPng();
-      }
-    }
-  }, [handleDownloadPng]);
+    const dataUrl = canvas.toDataURL('image/png');
+    const base64 = dataUrl.split(',')[1];
+    await nativeSaveAndShare(base64, 'sketch.png', 'image/png', true);
+  }, [nativeSaveAndShare]);
 
   // --- Palette manager ---
   const savePalettes = useCallback((palettes: { name: string; colors: string[] }[]) => {
