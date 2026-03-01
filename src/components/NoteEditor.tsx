@@ -275,7 +275,29 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     if (note) {
       setNoteType(note.type);
       setTitle(note.title);
-      setContent(note.content);
+      
+      // Check for crash-recovery data that may be newer than what's in IndexedDB
+      let recoveredContent = note.content;
+      try {
+        const recoveryRaw = localStorage.getItem('note_crash_recovery');
+        if (recoveryRaw) {
+          const recovery = JSON.parse(recoveryRaw);
+          // Only use recovery if it's for THIS note and less than 30 seconds old
+          if (recovery.id === note.id && (Date.now() - recovery.timestamp) < 30000) {
+            if (recovery.content && recovery.content.length > (note.content?.length || 0)) {
+              recoveredContent = recovery.content;
+              console.log('[NoteEditor] Recovered unsaved content from crash recovery');
+            }
+            if (recovery.codeContent) {
+              setCodeContent(recovery.codeContent);
+            }
+          }
+          // Clear recovery data after use
+          localStorage.removeItem('note_crash_recovery');
+        }
+      } catch {}
+      
+      setContent(recoveredContent);
       setColor(note.color || 'yellow');
       setCustomColor(note.customColor);
       setImages(note.images || []);
@@ -302,7 +324,9 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
       setNotificationIds(note.notificationIds);
 
       // Code fields
-      setCodeContent(note.codeContent || '');
+      if (!recoveredContent || note.type !== 'code') {
+        setCodeContent(note.codeContent || '');
+      }
       setCodeLanguage(note.codeLanguage || 'auto');
       setMetaDescription(note.metaDescription || '');
       
@@ -532,6 +556,8 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     if (!isOpenRef.current) return;
     
     await commitNote({ full: true });
+    // Clear crash recovery since we saved successfully
+    try { localStorage.removeItem('note_crash_recovery'); } catch {}
     
     // Close first, then handle navigation
     onClose();
@@ -588,39 +614,64 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
     };
   }, [isOpen]);
 
-  // Auto-save as user types (debounced)
+  // Auto-save as user types (debounced) - shorter debounce for sketch
   useEffect(() => {
     if (!isOpen) return;
 
     const hasText = (title?.trim() || '') !== '' || (content?.trim() || '') !== '' || (codeContent?.trim() || '') !== '';
     if (!hasText) return;
 
+    // Sketch data can be large; use shorter debounce to save sooner
+    const delay = noteType === 'sketch' ? 300 : 700;
     const t = window.setTimeout(() => {
       void commitNote({ full: false });
-    }, 700);
+    }, delay);
 
     return () => window.clearTimeout(t);
-  }, [isOpen, title, content, codeContent, commitNote]);
+  }, [isOpen, title, content, codeContent, commitNote, noteType]);
 
   // Save immediately if tab/app is backgrounded or page is refreshed/closed
   const buildCurrentNoteRef = useRef(buildCurrentNote);
   buildCurrentNoteRef.current = buildCurrentNote;
   
+  // Crash-recovery key for localStorage fallback
+  const CRASH_RECOVERY_KEY = 'note_crash_recovery';
+
   useEffect(() => {
     if (!isOpen) return;
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         void commitNote({ full: false });
+        // Also write to localStorage as synchronous fallback
+        try {
+          const savedNote = buildCurrentNoteRef.current();
+          localStorage.setItem(CRASH_RECOVERY_KEY, JSON.stringify({
+            id: savedNote.id,
+            type: savedNote.type,
+            title: savedNote.title,
+            content: savedNote.content,
+            timestamp: Date.now(),
+          }));
+        } catch {}
       }
     };
 
     // Force-save on page refresh/close to prevent data loss
+    // localStorage.setItem is SYNCHRONOUS and guaranteed to persist
     const onBeforeUnload = () => {
       try {
         const savedNote = buildCurrentNoteRef.current();
-        // Use synchronous-style save: write to IndexedDB via fire-and-forget
-        // The browser gives us a brief grace period during beforeunload
+        // Synchronous localStorage write - guaranteed to complete before page unloads
+        localStorage.setItem(CRASH_RECOVERY_KEY, JSON.stringify({
+          id: savedNote.id,
+          type: savedNote.type,
+          title: savedNote.title,
+          content: savedNote.content,
+          codeContent: savedNote.codeContent,
+          timestamp: Date.now(),
+        }));
+        // Also fire-and-forget IndexedDB save (may or may not complete)
         saveNoteToDBSingle(savedNote);
       } catch (e) {
         console.warn('beforeunload save failed:', e);
