@@ -427,7 +427,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
       color: noteType === 'sticky' ? color : undefined,
       customColor: noteType !== 'sticky' && noteType !== 'voice' ? customColor : undefined,
       images: noteType === 'sticky' ? undefined : images,
-      floatingImages: (noteType === 'regular' || noteType === 'sticky' || noteType === 'lined' || noteType === 'textformat') && floatingImages.length > 0 ? floatingImages : undefined,
+      floatingImages: (noteType === 'regular' || noteType === 'sticky' || noteType === 'textformat') && floatingImages.length > 0 ? floatingImages : undefined,
       voiceRecordings,
       folderId: selectedFolderId || noteType,
       fontFamily: (noteType === 'sticky' || noteType === 'lined' || noteType === 'regular' || noteType === 'textformat') ? fontFamily : undefined,
@@ -1740,7 +1740,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
                 content={content}
                 onChange={setContent}
                 onImageAdd={handleImageAdd}
-                allowImages={true}
+                allowImages={noteType !== 'lined'}
                 showTable={noteType !== 'lined'}
                 className={cn(
                   noteType === 'lined' && 'lined-note',
@@ -1767,10 +1767,10 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
                 onVoiceRecord={() => setShowVoiceRecorder(true)}
                 externalEditorRef={editorRef}
                 isFindReplaceOpen={isFindReplaceOpen}
-                onFloatingImageUpload={(noteType === 'regular' || noteType === 'sticky' || noteType === 'lined' || noteType === 'textformat') ? () => floatingImageRef.current?.triggerAdd() : undefined}
+                onFloatingImageUpload={(noteType === 'regular' || noteType === 'sticky' || noteType === 'textformat') ? () => floatingImageRef.current?.triggerAdd() : undefined}
               />
               {/* Floating images layer for regular/sticky/lined notes */}
-              {(noteType === 'regular' || noteType === 'sticky' || noteType === 'lined' || noteType === 'textformat') && (
+              {(noteType === 'regular' || noteType === 'sticky' || noteType === 'textformat') && (
                 <FloatingImageLayer
                   ref={floatingImageRef}
                   images={floatingImages}

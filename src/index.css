@@ -255,20 +255,21 @@ All colors MUST be HSL.
   }
 
 .lined-note {
-  /* Lined paper: aligned, and scrolls with content */
-  --line-gap: 1.75rem; /* distance between lines */
-  --first-line-offset: 1.25rem; /* push first text row to sit on first line */
+  /* Lined paper: subtle ruled lines */
+  --line-gap: 2rem; /* distance between lines */
+  --first-line-offset: 1.5rem; /* push first text row to sit on first line */
   background-color: hsl(var(--background)) !important;
-  background-image: linear-gradient(
+  background-image: repeating-linear-gradient(
+    to bottom,
     transparent,
     transparent calc(var(--line-gap) - 1px),
-    hsl(var(--muted-foreground) / 0.3) calc(var(--line-gap) - 1px),
-    hsl(var(--muted-foreground) / 0.3) var(--line-gap)
+    hsl(var(--muted-foreground) / 0.15) calc(var(--line-gap) - 1px),
+    hsl(var(--muted-foreground) / 0.15) var(--line-gap)
   );
   background-size: 100% var(--line-gap);
   background-position: 0 calc(var(--first-line-offset) - 1px);
-  background-origin: padding-box; /* align pattern relative to padding */
-  background-attachment: local; /* lines move with text while scrolling */
+  background-origin: padding-box;
+  background-attachment: local; /* lines scroll with content */
   line-height: var(--line-gap);
   padding-top: var(--first-line-offset);
 }
