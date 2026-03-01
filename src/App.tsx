@@ -27,6 +27,7 @@ import { ComboOverlay } from "@/components/ComboOverlay";
 // Eager load only the two most critical pages for instant first render
 import Index from "./pages/Index";
 import Today from "./pages/todo/Today";
+import { Onboarding } from "./components/Onboarding";
 
 // Lazy load everything else - they load in background after first paint
 const Notes = lazy(() => import("./pages/Notes"));
@@ -176,6 +177,7 @@ const AppRoutes = () => {
 const AppContent = () => {
   const [isAppLocked, setIsAppLocked] = useState<boolean | null>(null);
   const { mood, daysAway, isReturning, acknowledgeReturn } = useRetentionLogo();
+  const { hasSeenWelcome, isLoading: welcomeLoading, completeWelcome } = useWelcome();
   
   // Initialize keyboard height detection for mobile toolbar positioning
   useKeyboardHeight();
@@ -233,6 +235,11 @@ const AppContent = () => {
         <AppLockScreen onUnlock={handleUnlock} />
       </>
     );
+  }
+
+  // Show onboarding for first-time users
+  if (!welcomeLoading && !hasSeenWelcome) {
+    return <Onboarding onComplete={completeWelcome} />;
   }
 
   return (
