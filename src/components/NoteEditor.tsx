@@ -105,7 +105,15 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
 
   const [noteType, setNoteType] = useState<NoteType>(defaultType);
   const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
+  const [content, setContentState] = useState('');
+  const contentRef = useRef('');
+  const setContent = useCallback((val: React.SetStateAction<string>) => {
+    setContentState(prev => {
+      const next = typeof val === 'function' ? val(prev) : val;
+      contentRef.current = next;
+      return next;
+    });
+  }, []);
   const [color, setColor] = useState<StickyColor>('yellow');
   const [images, setImages] = useState<string[]>([]);
   const [floatingImages, setFloatingImages] = useState<FloatingImage[]>([]);
@@ -421,7 +429,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
       id: getCurrentNoteId(),
       type: noteType,
       title,
-      content: noteType === 'code' ? '' : content,
+      content: noteType === 'code' ? '' : contentRef.current,
       color: noteType === 'sticky' ? color : undefined,
       customColor: noteType !== 'sticky' && noteType !== 'voice' ? customColor : undefined,
       images: noteType === 'sticky' ? undefined : images,
