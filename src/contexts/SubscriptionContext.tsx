@@ -59,6 +59,7 @@ export const PREMIUM_FEATURES = [
   'extra_sections',
   'file_attachments',
   'customize_navigation',
+  'sketch',
 ] as const;
 
 // No features are restricted to specific plan types - all premium features available to all plans
