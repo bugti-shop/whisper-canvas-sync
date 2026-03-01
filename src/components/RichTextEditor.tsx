@@ -31,6 +31,7 @@ import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { sanitizeHtml } from '@/lib/sanitize';
+import { createPlayableUrl, isDataUrl, revokePlayableUrl } from '@/utils/audioStorage';
 import { TableEditor, generateTableHTML, TableContextMenu, TableStyle } from './TableEditor';
 import { WordToolbar } from './WordToolbar';
 import { getSetting, setSetting } from '@/utils/settingsStorage';
@@ -557,6 +558,19 @@ export const RichTextEditor = ({
         if (container.dataset.initialized === 'true') return;
         container.dataset.initialized = 'true';
         
+        // Pre-convert data URL to blob URL for reliable playback
+        const currentSrc = audioEl.getAttribute('src') || audioEl.src;
+        if (currentSrc && isDataUrl(currentSrc) && !container.dataset.blobSrc) {
+          try {
+            const blobUrl = createPlayableUrl(currentSrc);
+            container.dataset.blobSrc = blobUrl;
+            audioEl.src = blobUrl;
+            audioEl.load();
+          } catch (err) {
+            console.error('[VoicePlayer] Failed to pre-convert audio URL:', err);
+          }
+        }
+        
         const progressBar = container.querySelector('.waveform-progress') as HTMLElement;
         const durationSpan = container.querySelector('.voice-duration') as HTMLElement;
         const playIcon = container.querySelector('.play-icon') as HTMLElement;
@@ -628,7 +642,7 @@ export const RichTextEditor = ({
         e.preventDefault();
         e.stopPropagation();
         e.stopImmediatePropagation();
-        const container = playBtn.closest('.voice-recording-inline');
+        const container = playBtn.closest('.voice-recording-inline') as HTMLElement;
         const audio = container?.querySelector('audio') as HTMLAudioElement;
         if (audio) {
           if (audio.paused) {
@@ -636,7 +650,29 @@ export const RichTextEditor = ({
             document.querySelectorAll('.voice-recording-inline audio').forEach((a) => {
               if (a !== audio) (a as HTMLAudioElement).pause();
             });
-            audio.play().catch(console.error);
+            // Convert data URL to blob URL for reliable playback
+            const currentSrc = audio.getAttribute('src') || audio.src;
+            if (currentSrc && isDataUrl(currentSrc) && !container.dataset.blobSrc) {
+              try {
+                const blobUrl = createPlayableUrl(currentSrc);
+                container.dataset.blobSrc = blobUrl;
+                audio.src = blobUrl;
+                // Wait for audio to be ready before playing
+                audio.addEventListener('canplay', () => {
+                  audio.play().catch(console.error);
+                }, { once: true });
+                audio.load();
+              } catch (err) {
+                console.error('[VoicePlayer] Failed to create playable URL:', err);
+                audio.play().catch(console.error);
+              }
+            } else {
+              // Already has blob URL or is not a data URL
+              if (container.dataset.blobSrc && audio.src !== container.dataset.blobSrc) {
+                audio.src = container.dataset.blobSrc;
+              }
+              audio.play().catch(console.error);
+            }
           } else {
             audio.pause();
           }
