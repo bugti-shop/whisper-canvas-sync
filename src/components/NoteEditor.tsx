@@ -273,6 +273,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
 
   useEffect(() => {
     if (note) {
+      console.log(`[NoteEditor] Loading note: id=${note.id}, type=${note.type}, content length=${note.content?.length || 0}`);
       setNoteType(note.type);
       setTitle(note.title);
       
@@ -431,6 +432,7 @@ export const NoteEditor = ({ note, isOpen, onClose, onSave, defaultType = 'regul
 
   const persistNoteToIndexedDB = useCallback(async (savedNote: Note) => {
     try {
+      console.log(`[NoteEditor] persistNoteToIndexedDB: id=${savedNote.id}, type=${savedNote.type}, content length=${savedNote.content?.length || 0}`);
       await saveNoteToDBSingle(savedNote);
     } catch (e) {
       console.warn('Failed to persist note to IndexedDB', e);
