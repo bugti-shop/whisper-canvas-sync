@@ -274,9 +274,11 @@ All colors MUST be HSL.
   padding-top: var(--first-line-offset);
 }
 
-/* Ensure the editable area aligns perfectly with the first line */
+/* Ensure the editable area aligns perfectly with the first line and fills full height */
 .rich-text-editor.lined-note {
   padding-top: var(--first-line-offset) !important;
+  min-height: 100% !important;
+  box-sizing: border-box;
 }
 
 /* Embedded elements in lined notes - properly align with lines */
