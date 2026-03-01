@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Note } from '@/types/note';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trash2, Edit, Mic, FileText, Pen, Pin, FileCode, GitBranch, AlignLeft, Archive, Star, Check, Copy, EyeOff, Shield, Lock, FolderInput } from 'lucide-react';
+import { Trash2, Edit, Mic, FileText, Pen, Pin, FileCode, GitBranch, AlignLeft, Archive, Star, Check, Copy, EyeOff, Shield, Lock, FolderInput, StickyNote } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Haptics, ImpactStyle } from '@capacitor/haptics';
 import { getNoteProtection, NoteProtection } from '@/utils/noteProtection';
@@ -233,14 +233,21 @@ export const NoteCard = ({ note, onEdit, onDelete, onArchive, onTogglePin, onTog
       return { icon: Mic, label: 'Audio File' };
     }
     switch (note.type) {
+      case 'sketch':
+        return { icon: Pen, label: 'Sketch' };
+      case 'sticky':
+        return { icon: StickyNote, label: 'Sticky' };
       case 'lined':
         return { icon: AlignLeft, label: 'Lined' };
       case 'code':
         return { icon: FileCode, label: 'Code' };
+      case 'linkedin':
+        return { icon: FileText, label: 'LinkedIn' };
       case 'textformat':
         return { icon: FileText, label: 'Text Format' };
+      case 'regular':
       default:
-        return { icon: FileText, label: 'Text' };
+        return { icon: FileText, label: 'Regular' };
     }
   };
 
