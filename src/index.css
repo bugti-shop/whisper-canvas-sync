@@ -263,8 +263,8 @@ All colors MUST be HSL.
     to bottom,
     transparent,
     transparent calc(var(--line-gap) - 1px),
-    hsl(var(--muted-foreground) / 0.15) calc(var(--line-gap) - 1px),
-    hsl(var(--muted-foreground) / 0.15) var(--line-gap)
+    hsl(var(--muted-foreground) / 0.4) calc(var(--line-gap) - 1px),
+    hsl(var(--muted-foreground) / 0.4) var(--line-gap)
   );
   background-size: 100% var(--line-gap);
   background-position: 0 calc(var(--first-line-offset) - 1px);
@@ -277,7 +277,7 @@ All colors MUST be HSL.
 /* Ensure the editable area aligns perfectly with the first line and fills full height */
 .rich-text-editor.lined-note {
   padding-top: var(--first-line-offset) !important;
-  min-height: 100% !important;
+  min-height: 100vh !important;
   box-sizing: border-box;
 }
 
