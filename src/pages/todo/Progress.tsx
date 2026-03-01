@@ -13,7 +13,7 @@ import { checkDailyReward, loadDailyRewardData, type DailyRewardData } from '@/u
 
 import { GamificationCertificates, hasNewCertificates } from '@/components/GamificationCertificates';
 import { StreakDetailSheet } from '@/components/StreakDetailSheet';
-import { MonthlyChallengeBoard } from '@/components/MonthlyChallengeBoard';
+
 import { StreakSocietyBadge } from '@/components/StreakSocietyBadge';
 
 const Progress = () => {
@@ -340,9 +340,6 @@ const Progress = () => {
             <p className="text-2xl font-bold">{data?.streakFreezes || 0}</p>
           </div>
         </div>
-
-        {/* Monthly Challenge Board */}
-        <MonthlyChallengeBoard />
 
         {/* Milestones */}
         <div className="bg-card rounded-xl p-4 border">
