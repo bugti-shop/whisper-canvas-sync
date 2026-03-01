@@ -2058,72 +2058,133 @@ export const SketchEditor = memo(({ initialData, onChange, onImageExport, classN
 
     for (const layer of layersRef.current) {
       if (!layer.visible) continue;
-      ctx.save();
-      ctx.globalAlpha = layer.opacity;
 
-      // Render strokes with clipping mask support
-      for (let si = 0; si < layer.strokes.length; si++) {
-        const stroke = layer.strokes[si];
-        if (stroke.isClipMask && isShapeTool(stroke.tool)) {
-          // This shape acts as a clipping mask — draw its outline with dashed indicator and clip subsequent strokes
-          ctx.save();
-          // Draw the shape outline itself with clip mask indicator (dashed)
-          drawStroke(ctx, stroke);
-          // Draw dashed clip indicator overlay
-          ctx.setLineDash([6 / zoom, 4 / zoom]);
-          ctx.strokeStyle = 'hsl(280 80% 60% / 0.6)';
-          ctx.lineWidth = 1.5 / zoom;
-          const s2 = stroke.points[0], e2 = stroke.points[stroke.points.length - 1];
-          if (stroke.tool === 'rect') {
-            ctx.strokeRect(Math.min(s2.x, e2.x), Math.min(s2.y, e2.y), Math.abs(e2.x - s2.x), Math.abs(e2.y - s2.y));
-          } else if (stroke.tool === 'circle') {
-            ctx.beginPath(); ctx.ellipse((s2.x + e2.x) / 2, (s2.y + e2.y) / 2, Math.abs(e2.x - s2.x) / 2, Math.abs(e2.y - s2.y) / 2, 0, 0, Math.PI * 2); ctx.stroke();
-          }
-          ctx.setLineDash([]);
-          // Now create the clip path from the shape
-          ctx.beginPath();
-          const s = stroke.points[0], e = stroke.points[stroke.points.length - 1];
-          switch (stroke.tool) {
-            case 'rect':
-              ctx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y));
-              break;
-            case 'circle':
-              ctx.ellipse((s.x + e.x) / 2, (s.y + e.y) / 2, Math.abs(e.x - s.x) / 2, Math.abs(e.y - s.y) / 2, 0, 0, Math.PI * 2);
-              break;
-            case 'triangle': {
-              const cx2 = (s.x + e.x) / 2;
-              ctx.moveTo(cx2, s.y); ctx.lineTo(e.x, e.y); ctx.lineTo(s.x, e.y); ctx.closePath();
-              break;
+      // Check if this layer has any eraser strokes
+      const hasEraser = layer.strokes.some(s => s.tool === 'eraser');
+
+      if (hasEraser) {
+        // Render strokes on an offscreen canvas so eraser only removes strokes, not background
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const offCtx = offscreen.getContext('2d')!;
+        offCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        offCtx.imageSmoothingEnabled = true;
+        offCtx.imageSmoothingQuality = 'high';
+        offCtx.translate(pan.x, pan.y);
+        offCtx.scale(zoom, zoom);
+
+        for (let si = 0; si < layer.strokes.length; si++) {
+          const stroke = layer.strokes[si];
+          if (stroke.isClipMask && isShapeTool(stroke.tool)) {
+            offCtx.save();
+            drawStroke(offCtx, stroke);
+            offCtx.setLineDash([6 / zoom, 4 / zoom]);
+            offCtx.strokeStyle = 'hsl(280 80% 60% / 0.6)';
+            offCtx.lineWidth = 1.5 / zoom;
+            const s2 = stroke.points[0], e2 = stroke.points[stroke.points.length - 1];
+            if (stroke.tool === 'rect') {
+              offCtx.strokeRect(Math.min(s2.x, e2.x), Math.min(s2.y, e2.y), Math.abs(e2.x - s2.x), Math.abs(e2.y - s2.y));
+            } else if (stroke.tool === 'circle') {
+              offCtx.beginPath(); offCtx.ellipse((s2.x + e2.x) / 2, (s2.y + e2.y) / 2, Math.abs(e2.x - s2.x) / 2, Math.abs(e2.y - s2.y) / 2, 0, 0, Math.PI * 2); offCtx.stroke();
             }
-            default:
-              // For other shapes, use a bounding rect as clip region
-              ctx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y));
-              break;
+            offCtx.setLineDash([]);
+            offCtx.beginPath();
+            const s = stroke.points[0], e = stroke.points[stroke.points.length - 1];
+            switch (stroke.tool) {
+              case 'rect': offCtx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y)); break;
+              case 'circle': offCtx.ellipse((s.x + e.x) / 2, (s.y + e.y) / 2, Math.abs(e.x - s.x) / 2, Math.abs(e.y - s.y) / 2, 0, 0, Math.PI * 2); break;
+              case 'triangle': { const cx2 = (s.x + e.x) / 2; offCtx.moveTo(cx2, s.y); offCtx.lineTo(e.x, e.y); offCtx.lineTo(s.x, e.y); offCtx.closePath(); break; }
+              default: offCtx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y)); break;
+            }
+            offCtx.clip();
+            for (let ci = si + 1; ci < layer.strokes.length; ci++) {
+              if (layer.strokes[ci].isClipMask) break;
+              drawStroke(offCtx, layer.strokes[ci]);
+              si = ci;
+            }
+            offCtx.restore();
+          } else {
+            drawStroke(offCtx, stroke);
           }
-          ctx.clip();
-          // Continue rendering subsequent strokes clipped until we hit the end or another clip mask
-          for (let ci = si + 1; ci < layer.strokes.length; ci++) {
-            if (layer.strokes[ci].isClipMask) break;
-            drawStroke(ctx, layer.strokes[ci]);
-            si = ci; // advance outer index
+        }
+
+        // Draw text annotations on offscreen too
+        for (const ta of (layer.textAnnotations || [])) {
+          offCtx.save();
+          const style = `${ta.italic ? 'italic ' : ''}${ta.bold ? 'bold ' : ''}${ta.fontSize}px ${ta.font}`;
+          offCtx.font = style;
+          offCtx.fillStyle = ta.color;
+          offCtx.textBaseline = 'top';
+          const lines = ta.text.split('\n');
+          for (let li = 0; li < lines.length; li++) {
+            offCtx.fillText(lines[li], ta.x, ta.y + li * ta.fontSize * 1.2);
+          }
+          offCtx.restore();
+        }
+
+        // Composite the offscreen layer onto the main canvas
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0); // reset transform to pixel coords
+        ctx.globalAlpha = layer.opacity;
+        ctx.drawImage(offscreen, 0, 0);
+        ctx.restore();
+        // Restore transform for remaining layers
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.translate(pan.x, pan.y);
+        ctx.scale(zoom, zoom);
+      } else {
+        // No eraser strokes — render directly (faster)
+        ctx.save();
+        ctx.globalAlpha = layer.opacity;
+
+        for (let si = 0; si < layer.strokes.length; si++) {
+          const stroke = layer.strokes[si];
+          if (stroke.isClipMask && isShapeTool(stroke.tool)) {
+            ctx.save();
+            drawStroke(ctx, stroke);
+            ctx.setLineDash([6 / zoom, 4 / zoom]);
+            ctx.strokeStyle = 'hsl(280 80% 60% / 0.6)';
+            ctx.lineWidth = 1.5 / zoom;
+            const s2 = stroke.points[0], e2 = stroke.points[stroke.points.length - 1];
+            if (stroke.tool === 'rect') {
+              ctx.strokeRect(Math.min(s2.x, e2.x), Math.min(s2.y, e2.y), Math.abs(e2.x - s2.x), Math.abs(e2.y - s2.y));
+            } else if (stroke.tool === 'circle') {
+              ctx.beginPath(); ctx.ellipse((s2.x + e2.x) / 2, (s2.y + e2.y) / 2, Math.abs(e2.x - s2.x) / 2, Math.abs(e2.y - s2.y) / 2, 0, 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            const s = stroke.points[0], e = stroke.points[stroke.points.length - 1];
+            switch (stroke.tool) {
+              case 'rect': ctx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y)); break;
+              case 'circle': ctx.ellipse((s.x + e.x) / 2, (s.y + e.y) / 2, Math.abs(e.x - s.x) / 2, Math.abs(e.y - s.y) / 2, 0, 0, Math.PI * 2); break;
+              case 'triangle': { const cx2 = (s.x + e.x) / 2; ctx.moveTo(cx2, s.y); ctx.lineTo(e.x, e.y); ctx.lineTo(s.x, e.y); ctx.closePath(); break; }
+              default: ctx.rect(Math.min(s.x, e.x), Math.min(s.y, e.y), Math.abs(e.x - s.x), Math.abs(e.y - s.y)); break;
+            }
+            ctx.clip();
+            for (let ci = si + 1; ci < layer.strokes.length; ci++) {
+              if (layer.strokes[ci].isClipMask) break;
+              drawStroke(ctx, layer.strokes[ci]);
+              si = ci;
+            }
+            ctx.restore();
+          } else {
+            drawStroke(ctx, stroke);
+          }
+        }
+        // Draw text annotations
+        for (const ta of (layer.textAnnotations || [])) {
+          ctx.save();
+          const style = `${ta.italic ? 'italic ' : ''}${ta.bold ? 'bold ' : ''}${ta.fontSize}px ${ta.font}`;
+          ctx.font = style;
+          ctx.fillStyle = ta.color;
+          ctx.textBaseline = 'top';
+          const lines = ta.text.split('\n');
+          for (let li = 0; li < lines.length; li++) {
+            ctx.fillText(lines[li], ta.x, ta.y + li * ta.fontSize * 1.2);
           }
           ctx.restore();
-        } else {
-          drawStroke(ctx, stroke);
         }
-      }
-      // Draw text annotations
-      for (const ta of (layer.textAnnotations || [])) {
-        ctx.save();
-        const style = `${ta.italic ? 'italic ' : ''}${ta.bold ? 'bold ' : ''}${ta.fontSize}px ${ta.font}`;
-        ctx.font = style;
-        ctx.fillStyle = ta.color;
-        ctx.textBaseline = 'top';
-        const lines = ta.text.split('\n');
-        for (let li = 0; li < lines.length; li++) {
-          ctx.fillText(lines[li], ta.x, ta.y + li * ta.fontSize * 1.2);
-        }
-        ctx.restore();
       }
       // Draw images
       for (const img of (layer.images || [])) {
